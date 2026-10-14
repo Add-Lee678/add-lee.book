@@ -1,0 +1,90 @@
+{
+  "updatedAt": "2026-10-14T09:02:29.884Z",
+  "books": [
+    {
+      "id": "b_fog_1",
+      "title": "雾城夜巡录 · 卷一",
+      "cover": "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=500&q=80",
+      "group": "奇幻",
+      "series": "雾城编年史",
+      "fav": true,
+      "tags": [
+        "蒸汽朋克",
+        "悬疑"
+      ],
+      "summary": "维多利亚时代的终年雾都，守夜人执黄铜提灯穿行于发条巷弄，追查未封档的旧案。",
+      "outline": "第一章：老钟楼下的火漆密信\n第二章：地下铁道的差分机残骸",
+      "chapters": [
+        {
+          "title": "第一章 · 煤气灯下的灰烬",
+          "content": "夜雾漫过街角的时候，老钟楼恰好敲响第十一下。\n\n他收起黄铜怀表，指尖擦过封皮上微凉的火漆印。在这座终年不见日光的雾城里，每一盏深夜亮起的绿灯都代表着一桩尚未封档的旧案。\n\n轻点屏幕正中央区域，可以随时唤出或隐藏顶部的 iOS 图标导航栏与底部悬浮胶囊按钮。\n\n切换为「平滑翻页」或「仿真卷页」后，现在可以顺畅翻阅第2页、第3页，再也不会出现空白页了！\n\n当你在目录里跳转到其他章节时，底部的「返回原进度」按钮会在你翻页4次或5秒后自动消失。"
+        },
+        {
+          "title": "第二章 · 发条心脏的停摆",
+          "content": "地下铁道的蒸汽阀门发出低沉的喘息。机械师把最后一枚齿轮嵌进胸腔仪，蓝色的电弧在潮湿的空气里一闪而逝。\n\n“如果记忆可以被装进差分机，那么灵魂的重量大概只有二十一克黄铜。”他低声写下这行笔记。\n\n无论是 Windows、macOS、iOS、iPadOS 还是 Android，切换思源宋体或楷体都能看到完全一致的排版效果。"
+        }
+      ]
+    },
+    {
+      "id": "b_fog_2",
+      "title": "雾城夜巡录 · 卷二：白银黎明",
+      "cover": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=500&q=80",
+      "group": "奇幻",
+      "series": "雾城编年史",
+      "fav": false,
+      "tags": [
+        "蒸汽朋克"
+      ],
+      "summary": "雾城编年史第二部，北境极光下的冰原远征。",
+      "outline": "",
+      "chapters": [
+        {
+          "title": "第一章 · 飞艇与北风",
+          "content": "北纬七十度的天空燃烧着幽绿色的极光，探险队的履带车在冰裂隙边缘停驻。"
+        }
+      ]
+    },
+    {
+      "id": "b_fog_3",
+      "title": "雾城夜巡录 · 卷三：终局",
+      "cover": "https://images.unsplash.com/photo-1509021436665-8f07dbf5bf1d?auto=format&fit=crop&w=500&q=80",
+      "group": "奇幻",
+      "series": "雾城编年史",
+      "fav": true,
+      "tags": [
+        "完结"
+      ],
+      "summary": "当百年迷雾散尽，钟楼顶端的风向标指向新的纪元。",
+      "outline": "",
+      "chapters": [
+        {
+          "title": "终章 · 雾散之时",
+          "content": "阳光刺破云层，所有的手稿都被锁进了档案局最深处的樟木匣。"
+        }
+      ]
+    },
+    {
+      "id": "b_changan",
+      "title": "长安花信风",
+      "cover": "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=500&q=80",
+      "group": "古风",
+      "series": "",
+      "fav": false,
+      "tags": [
+        "古典",
+        "江湖"
+      ],
+      "summary": "暮春三月的曲江池畔，红衣女侠提剑跃上画舫，揭开盛唐夜宴背后的一桩奇闻。",
+      "outline": "",
+      "chapters": [
+        {
+          "title": "第一折 · 曲江春宴",
+          "content": "暮春三月的曲江池畔，柳絮如雪。画舫上的琵琶声刚落，一袭红衣的女子便提剑跃上了船头，眉眼间尽是盛唐的风流与飒爽。"
+        }
+      ]
+    }
+  ],
+  "progressMap": {},
+  "bookmarksMap": {},
+  "highlightsMap": {}
+}
