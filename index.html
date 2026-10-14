@@ -3,713 +3,1985 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>我的小说馆</title>
+  <title>我的小说馆 · Pro</title>
+  <!-- 引入 JSZip 用于在浏览器端直接解析 EPUB 电子书与 Markdown -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
-    /* iOS 物理弹簧阻尼 & 平滑过渡动画 */
     :root {
-      --bg: #f7f7f9;
+      --bg: #f5f5f7;
       --card-bg: #ffffff;
-      --text-main: #1c1c1e;
-      --text-muted: #8e8e93;
-      --accent: #c5a059;
-      --accent-light: rgba(197, 160, 89, 0.15);
-      --ios-radius: 14px;
-      --font-size: 17px;
-      --font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-    }
-
-    [data-theme="dark"] {
-      --bg: #121214;
-      --card-bg: #1c1c20;
-      --text-main: #e2e2e6;
-      --text-muted: #888890;
+      --surface: #ebebf0;
+      --text-main: #1d1d1f;
+      --text-muted: #86868b;
+      --accent: #b8860b;
+      --accent-soft: rgba(184, 134, 11, 0.14);
+      --danger: #ff3b30;
+      --border: rgba(0, 0, 0, 0.08);
+      --shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --font-size: 18px;
+      --line-height: 1.85;
+      --font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+      --spring: cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     [data-theme="warm"] {
-      --bg: #f4eae1;
-      --card-bg: #fbf5f0;
-      --text-main: #3a2c1e;
-      --text-muted: #8c7662;
+      --bg: #f3ecdf;
+      --card-bg: #faf6ee;
+      --surface: #e6decb;
+      --text-main: #3b2e22;
+      --text-muted: #8a7865;
+      --accent: #9c5a25;
+      --accent-soft: rgba(156, 90, 37, 0.15);
+      --border: rgba(59, 46, 34, 0.1);
     }
 
-    /* 字体族 */
+    [data-theme="green"] {
+      --bg: #dce8de;
+      --card-bg: #eaf2eb;
+      --surface: #cce0cf;
+      --text-main: #1f3324;
+      --text-muted: #607d67;
+      --accent: #2c6e49;
+      --accent-soft: rgba(44, 110, 73, 0.15);
+    }
+
+    [data-theme="dark"] {
+      --bg: #111113;
+      --card-bg: #1c1c1f;
+      --surface: #28282c;
+      --text-main: #e5e5ea;
+      --text-muted: #8e8e93;
+      --accent: #d4af37;
+      --accent-soft: rgba(212, 175, 55, 0.18);
+      --border: rgba(255, 255, 255, 0.08);
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    }
+
     [data-font="serif"] {
-      --font-family: "Georgia", "Songti SC", "SimSun", serif;
+      --font-family: "Songti SC", "Noto Serif SC", "Source Han Serif SC", "SimSun", Georgia, serif;
+    }
+    [data-font="kai"] {
+      --font-family: "Kaiti SC", "STKaiti", "KaiTi", serif;
     }
 
     * {
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
-      transition: background-color 0.3s ease, color 0.3s ease;
     }
 
     body {
       margin: 0;
+      padding: 0;
       font-family: var(--font-family);
       background-color: var(--bg);
       color: var(--text-main);
       overflow-x: hidden;
       user-select: none;
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
 
-    /* 顶部 & 导航 */
+    /* 顶部栏 */
     .app-header {
       position: sticky;
       top: 0;
+      z-index: 90;
       background-color: var(--bg);
-      padding: 16px 20px;
-      z-index: 100;
+      padding: 12px 18px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid rgba(0,0,0,0.05);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-left, .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
     .app-title {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
-      letter-spacing: -0.5px;
+      letter-spacing: -0.3px;
     }
 
-    /* 页面容器 - 模拟 iOS 导航堆栈 */
-    .view-stack {
-      position: relative;
-      width: 100%;
-      min-height: calc(100vh - 60px);
-    }
-
-    .view {
-      display: none;
-      width: 100%;
-      padding: 20px;
-      animation: ios-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
-
-    .view.active {
-      display: block;
-    }
-
-    @keyframes ios-fade-in {
-      from { transform: translateY(12px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    /* 1. 书架界面 */
-    .shelf-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 20px 16px;
-      margin-top: 20px;
-    }
-
-    .book-card {
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-    .book-cover-container {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 3 / 4;
-      background: #e2e2e6;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
-      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .book-card:active .book-cover-container {
-      transform: scale(0.96);
-    }
-
-    .book-cover {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    /* iOS 物理边缘阴影、书脊立体效果 */
-    .book-spine-highlight {
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 4%;
-      background: linear-gradient(90deg, rgba(255,255,255,0.2) 0%, rgba(0,0,0,0.1) 100%);
-      z-index: 2;
-    }
-
-    .book-info {
-      margin-top: 8px;
-      width: 100%;
-    }
-
-    .book-name {
-      font-size: 13.5px;
-      font-weight: 600;
-      line-height: 1.3;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-    }
-
-    .book-progress {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 3px;
-    }
-
-    /* 2. 目录界面 */
-    .back-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 15px;
-      color: var(--accent);
-      background: none;
+    .pill-btn {
+      background: var(--surface);
+      color: var(--text-main);
       border: none;
-      padding: 0;
-      cursor: pointer;
-      margin-bottom: 20px;
-    }
-
-    .toc-title {
-      font-size: 24px;
-      font-weight: 700;
-      margin-bottom: 16px;
-    }
-
-    .toc-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .toc-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px;
-      background-color: var(--card-bg);
-      border-radius: var(--ios-radius);
-      cursor: pointer;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-    }
-
-    .toc-item:active {
-      transform: scale(0.98);
-    }
-
-    /* 3. 阅读器界面 */
-    .reader-nav {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-    }
-
-    .reader-chapter-title {
-      font-size: 22px;
-      font-weight: 700;
-      margin-top: 10px;
-      margin-bottom: 20px;
-    }
-
-    .reader-body {
-      font-size: var(--font-size);
-      line-height: 1.85;
-      letter-spacing: 0.5px;
-      user-select: text; /* 允许划线 */
-    }
-
-    .reader-body p {
-      margin-bottom: 24px;
-      text-indent: 2em;
-    }
-
-    /* 划线划词高亮样式 */
-    .highlight-yellow {
-      background-color: #ffeb3b80;
-      border-bottom: 2px wavy #ffc107;
-      cursor: pointer;
-    }
-
-    /* 微信读书式快捷菜单 */
-    .selection-menu {
-      position: fixed;
-      background: #1c1c1e;
-      color: white;
-      border-radius: 8px;
-      padding: 8px 12px;
-      display: none;
-      z-index: 999;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      padding: 6px 12px;
+      border-radius: 999px;
       font-size: 13px;
-      gap: 12px;
-      animation: menu-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .selection-menu span {
+      font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      transition: transform 0.15s ease, background 0.2s ease;
+    }
+    .pill-btn:active { transform: scale(0.94); }
+    .pill-btn.primary {
+      background: var(--accent);
+      color: #fff;
     }
 
-    @keyframes menu-pop {
-      from { transform: scale(0.8) translateY(10px); opacity: 0; }
-      to { transform: scale(1) translateY(0); opacity: 1; }
-    }
-
-    /* 顶栏控制组 */
-    .reader-tools {
-      display: flex;
-      gap: 14px;
-    }
-
-    .tool-btn {
-      background: none;
-      border: none;
-      font-size: 18px;
-      cursor: pointer;
-      color: var(--text-main);
-    }
-
-    /* 划线与书签面板 */
-    .panel-header {
-      font-weight: 600;
-      margin-top: 30px;
-      margin-bottom: 12px;
-      font-size: 15px;
-      color: var(--accent);
-    }
-
-    .bookmark-badge {
-      display: inline-block;
-      padding: 3px 8px;
-      font-size: 11px;
-      background-color: var(--accent-light);
-      color: var(--accent);
-      border-radius: 4px;
-      margin-right: 6px;
-    }
-
-    .highlight-badge {
-      border-left: 3px solid var(--accent);
-      padding-left: 10px;
-      margin-bottom: 10px;
-      font-size: 14px;
-      color: var(--text-main);
-    }
-
-    /* iOS 风格外观设置抽屉 */
-    .settings-sheet {
-      position: fixed;
-      bottom: -100%;
-      left: 0;
-      right: 0;
-      background: var(--card-bg);
-      border-top-left-radius: 20px;
-      border-top-right-radius: 20px;
-      padding: 24px;
-      z-index: 1000;
-      box-shadow: 0 -10px 40px rgba(0,0,0,0.15);
-      transition: bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .settings-sheet.active {
-      bottom: 0;
-    }
-
-    .settings-group {
-      margin-bottom: 20px;
-    }
-
-    .settings-title {
-      font-size: 12px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 10px;
-    }
-
-    .btn-row {
+    /* 分组与标签过滤栏 */
+    .filter-bar {
       display: flex;
       gap: 8px;
+      padding: 10px 18px 4px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .filter-bar::-webkit-scrollbar { display: none; }
+    .filter-chip {
+      padding: 5px 13px;
+      border-radius: 999px;
+      font-size: 13px;
+      background: var(--surface);
+      color: var(--text-muted);
+      white-space: nowrap;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s var(--spring);
+    }
+    .filter-chip.active {
+      background: var(--text-main);
+      color: var(--bg);
+      font-weight: 600;
     }
 
-    .config-btn {
-      flex: 1;
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid rgba(0,0,0,0.1);
-      background: var(--bg);
+    /* 视图切换 */
+    .view {
+      display: none;
+      width: 100%;
+      min-height: calc(100vh - 56px);
+    }
+    .view.active {
+      display: block;
+      animation: viewEnter 0.35s var(--spring) both;
+    }
+    @keyframes viewEnter {
+      from { opacity: 0; transform: translateY(10px) scale(0.99); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* 书架网格 */
+    .shelf-container {
+      padding: 16px 18px 110px;
+    }
+    .shelf-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px 16px;
+    }
+    @media (min-width: 640px) {
+      .shelf-grid { grid-template-columns: repeat(4, 1fr); gap: 28px 22px; }
+    }
+
+    .book-card {
+      position: relative;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* 编辑模式下苹果式轻微抖动 */
+    .editing .book-card {
+      animation: jiggle 0.28s infinite alternate ease-in-out;
+    }
+    .editing .book-card:nth-child(even) {
+      animation-delay: 0.08s;
+    }
+    @keyframes jiggle {
+      0% { transform: rotate(-1deg); }
+      100% { transform: rotate(1deg); }
+    }
+
+    .cover-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3 / 4.1;
+      border-radius: 10px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      transition: transform 0.25s var(--spring), box-shadow 0.25s ease;
+    }
+    .book-card:active .cover-wrap {
+      transform: scale(0.95);
+    }
+
+    .cover-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 10px;
+      display: block;
+      position: relative;
+      z-index: 3;
+      background: #2c2c30;
+    }
+
+    /* 仿真书脊高光凹槽 */
+    .spine-line {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 6%;
+      background: linear-gradient(90deg, rgba(255,255,255,0.28) 0%, rgba(0,0,0,0.18) 65%, transparent 100%);
+      border-top-left-radius: 10px;
+      border-bottom-left-radius: 10px;
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    /* 系列书籍：上下错位叠放封面效果 */
+    .series-stack .stack-layer-1,
+    .series-stack .stack-layer-2 {
+      position: absolute;
+      inset: 0;
+      border-radius: 10px;
+      background-size: cover;
+      background-position: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      transition: transform 0.35s var(--spring);
+      border: 1px solid var(--border);
+    }
+    .series-stack .stack-layer-1 {
+      z-index: 2;
+      transform: translate(5px, -6px) scale(0.96);
+      filter: brightness(0.92);
+    }
+    .series-stack .stack-layer-2 {
+      z-index: 1;
+      transform: translate(10px, -12px) scale(0.92);
+      filter: brightness(0.84);
+    }
+
+    /* 角标：收藏、系列数量、勾选框 */
+    .fav-badge {
+      position: absolute;
+      top: -4px; right: 8px;
+      z-index: 6;
+      background: #ffb800;
+      color: #fff;
+      font-size: 11px;
+      padding: 3px 5px;
+      border-radius: 0 0 6px 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .series-badge {
+      position: absolute;
+      bottom: 6px; right: 6px;
+      z-index: 6;
+      background: rgba(0,0,0,0.72);
+      color: #fff;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 99px;
+      font-weight: 600;
+    }
+    .select-check {
+      position: absolute;
+      top: 8px; left: 8px;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.45);
+      border: 2px solid #fff;
+      z-index: 7;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .editing .select-check { display: flex; }
+    .book-card.selected .select-check {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .book-title-label {
+      margin-top: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .book-sub-meta {
+      margin-top: 3px;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .mini-tag {
+      background: var(--accent-soft);
+      color: var(--accent);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 10px;
+    }
+
+    /* 3. 系列扇形展开遮罩层 (Fan Overlay) */
+    .fan-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s var(--spring);
+    }
+    .fan-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .fan-header {
+      color: #fff;
+      text-align: center;
+      margin-bottom: 40px;
+      transform: translateY(-10px);
+      transition: transform 0.35s var(--spring);
+    }
+    .fan-stage {
+      position: relative;
+      width: 280px;
+      height: 260px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .fan-card {
+      position: absolute;
+      width: 135px;
+      aspect-ratio: 3 / 4.1;
+      border-radius: 10px;
+      background: var(--card-bg);
+      box-shadow: 0 14px 35px rgba(0,0,0,0.45);
+      cursor: pointer;
+      transform-origin: 50% 135%;
+      transform: translate(0, 0) rotate(0deg) scale(0.75);
+      opacity: 0;
+      transition: transform 0.48s cubic-bezier(0.2, 1.1, 0.3, 1), opacity 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+    .fan-card img {
+      width: 100%;
+      height: 80%;
+      object-fit: cover;
+    }
+    .fan-card .fan-card-title {
+      height: 20%;
+      background: var(--card-bg);
       color: var(--text-main);
-      font-weight: 500;
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 6px;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* 底部编辑操作栏 */
+    .edit-dock {
+      position: fixed;
+      left: 12px; right: 12px; bottom: -110px;
+      background: var(--card-bg);
+      border-radius: 18px;
+      padding: 10px 12px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.22);
+      border: 1px solid var(--border);
+      z-index: 300;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      transition: bottom 0.35s var(--spring);
+    }
+    .edit-dock.show { bottom: 18px; }
+    .dock-item {
+      background: none;
+      border: none;
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      padding: 4px 6px;
+    }
+    .dock-item.danger { color: var(--danger); }
+    .dock-icon { font-size: 18px; }
+
+    /* 2. 独立目录页 */
+    .toc-page {
+      padding: 16px 20px 60px;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+    .book-hero {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding: 16px;
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+    .book-hero img {
+      width: 80px;
+      aspect-ratio: 3/4.1;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+    .toc-item {
+      padding: 15px 16px;
+      background: var(--card-bg);
+      border-radius: 12px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+    .toc-item:active { transform: scale(0.98); }
+
+    /* 4. 阅读器视图：支持「上下滑动」与「左右翻页」 */
+    #reader-view {
+      position: relative;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    .reader-top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--bg);
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    /* 上下滚动容器 */
+    .reader-scroll-container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 20px 22px 120px;
+      user-select: text;
+    }
+
+    /* 左右翻页容器 */
+    .reader-paged-wrapper {
+      display: none;
+      width: 100vw;
+      height: calc(100vh - 96px);
+      overflow: hidden;
+      position: relative;
+    }
+    .reader-mode-paged .reader-scroll-container {
+      height: calc(100vh - 105px);
+      overflow: hidden;
+      padding: 16px 24px;
+      column-width: calc(100vw - 48px);
+      column-gap: 48px;
+      column-fill: auto;
+      max-width: none;
+      margin: 0;
+      transition: transform 0.32s var(--spring);
+    }
+
+    .chapter-heading {
+      font-size: 23px;
+      font-weight: 700;
+      margin: 8px 0 24px;
+      line-height: 1.35;
+    }
+    .chapter-article {
+      font-size: var(--font-size);
+      line-height: var(--line-height);
+      letter-spacing: 0.4px;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    .chapter-article p {
+      margin: 0 0 1.2em;
+      text-indent: 2em;
+    }
+    .chapter-article img {
+      max-width: 100%;
+      border-radius: 10px;
+      margin: 12px 0;
+      display: block;
+    }
+
+    .chapter-footer-nav {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 36px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* 4. 实时手势目录抽屉（左滑 1/3 与 下滑 1/3） */
+    .gesture-drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      z-index: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .gesture-drawer-backdrop.visible {
+      pointer-events: auto;
+    }
+
+    /* 左侧 1/3 目录（上下滚动阅读专属） */
+    .left-toc-drawer {
+      position: fixed;
+      top: 0; bottom: 0; left: 0;
+      width: 38vw;
+      min-width: 240px;
+      max-width: 340px;
+      background: var(--card-bg);
+      z-index: 601;
+      box-shadow: 6px 0 28px rgba(0,0,0,0.22);
+      transform: translateX(-100%);
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      touch-action: pan-y;
+    }
+
+    /* 底部 1/3 目录（左右翻页阅读专属） */
+    .bottom-toc-drawer {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      height: 36vh;
+      min-height: 250px;
+      background: var(--card-bg);
+      z-index: 601;
+      box-shadow: 0 -6px 28px rgba(0,0,0,0.22);
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      transform: translateY(100%);
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid var(--border);
+    }
+
+    .drawer-header {
+      padding: 14px 16px;
+      font-weight: 700;
+      font-size: 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .drawer-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 12px;
+    }
+    .drawer-chap-item {
+      padding: 10px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .drawer-chap-item.current {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    /* 返回原阅读进度胶囊按钮 */
+    .return-progress-pill {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--text-main);
+      color: var(--bg);
+      padding: 10px 18px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 550;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+      cursor: pointer;
+      transition: transform 0.35s var(--spring);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .return-progress-pill.show {
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* 5. 划线与想法样式 */
+    .hl-span {
+      padding: 2px 0;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .hl-yellow { background: rgba(255, 214, 10, 0.38); border-bottom: 2px solid #f5b400; }
+    .hl-pink   { background: rgba(255, 105, 135, 0.32); border-bottom: 2px solid #ff4d6d; }
+    .hl-blue   { background: rgba(64, 156, 255, 0.32); border-bottom: 2px solid #007aff; }
+    .hl-has-note::after {
+      content: "💭";
+      font-size: 12px;
+      margin-left: 2px;
+    }
+
+    /* 划词悬浮气泡 */
+    .selection-toolbar {
+      position: fixed;
+      background: #1d1d1f;
+      color: #fff;
+      border-radius: 12px;
+      padding: 8px 12px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      z-index: 800;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+      font-size: 13px;
+    }
+    .selection-toolbar button {
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+    }
+    .color-dot {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 1.5px solid #fff;
       cursor: pointer;
     }
 
-    .config-btn.active {
-      border-color: var(--accent);
-      background: var(--accent-light);
-      color: var(--accent);
-    }
-
-    .backdrop {
+    /* 通用底部弹窗抽屉（设置 / AI 助手 / 换封面） */
+    .sheet-modal {
       position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.4);
-      opacity: 0;
-      visibility: hidden;
-      z-index: 998;
-      transition: opacity 0.3s ease;
+      left: 0; right: 0; bottom: -105%;
+      background: var(--card-bg);
+      border-top-left-radius: 22px;
+      border-top-right-radius: 22px;
+      padding: 20px;
+      z-index: 700;
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.25);
+      transition: bottom 0.35s var(--spring);
+      max-height: 82vh;
+      overflow-y: auto;
+    }
+    .sheet-modal.open { bottom: 0; }
+    .seg-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .seg-btn {
+      flex: 1;
+      padding: 9px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-main);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .seg-btn.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: var(--accent);
     }
 
-    .backdrop.active {
-      opacity: 1;
-      visibility: visible;
+    .text-input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-main);
+      font-size: 14px;
+      margin-bottom: 10px;
+      outline: none;
     }
 
-    /* iOS 样式滑动指示器（底部 Bar） */
-    .ios-home-indicator {
-      width: 140px;
-      height: 5px;
-      background-color: var(--text-muted);
-      border-radius: 100px;
-      margin: 20px auto 10px;
-      opacity: 0.3;
+    /* 手势提示小贴士 */
+    .gesture-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 6px;
+      background: var(--surface);
+      border-radius: 8px;
+      margin-bottom: 14px;
     }
   </style>
 </head>
 <body>
 
-  <!-- 通用毛玻璃/遮罩层 -->
-  <div id="backdrop" class="backdrop" onclick="toggleSettings(false)"></div>
+  <!-- 顶部主导航（书架与目录可见） -->
+  <header class="app-header" id="main-header">
+    <div class="header-left">
+      <div class="app-title" id="header-title">我的书架</div>
+    </div>
+    <div class="header-right">
+      <button class="pill-btn" onclick="triggerImport()">➕ 导入小说/EPUB</button>
+      <button class="pill-btn" id="edit-mode-btn" onclick="toggleEditMode()">整理</button>
+      <button class="pill-btn" onclick="openSheet('ai-sheet')">✨ AI</button>
+      <button class="pill-btn" onclick="openSheet('settings-sheet')">⚙️</button>
+    </div>
+  </header>
 
-  <div id="app">
-    <!-- 顶部状态导航 -->
-    <header class="app-header">
-      <div class="app-title" id="nav-title">我的书架</div>
-      <div class="reader-tools">
-        <button class="tool-btn" id="bookmark-indicator" onclick="toggleBookmark()" style="display:none;">🔖</button>
-        <button class="tool-btn" onclick="toggleSettings(true)">⚙️</button>
+  <!-- 隐藏的本地文件选择器（支持 .md, .txt, .epub） -->
+  <input type="file" id="book-file-input" accept=".md,.txt,.epub" multiple style="display:none" onchange="handleFilesImport(event)">
+  <!-- 隐藏的封面图片选择器 -->
+  <input type="file" id="cover-file-input" accept="image/*" style="display:none" onchange="handleCoverFileUpload(event)">
+
+  <!-- 1. 书架视图 -->
+  <section id="shelf-view" class="view active">
+    <div class="filter-bar" id="filter-bar"></div>
+    <div class="shelf-container">
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">
+        💡 提示：长按任意封面可进入编辑（分组/归入系列/换封面）；同一系列的书会自动叠放并支持扇形展开。
       </div>
-    </header>
+      <div class="shelf-grid" id="shelf-grid"></div>
+    </div>
+  </section>
 
-    <main class="view-stack">
-      
-      <!-- 1. 书架界面 -->
-      <section id="shelf-view" class="view active">
-        <div class="shelf-grid">
-          
-          <!-- 书本 1 -->
-          <div class="book-card" onclick="openBook('夜巡者手记')">
-            <div class="book-cover-container">
-              <div class="book-spine-highlight"></div>
-              <img src="https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&w=400&q=80" alt="夜巡者手记" class="book-cover">
-            </div>
-            <div class="book-info">
-              <div class="book-name">夜巡者手记</div>
-              <div class="book-progress">已读 32%</div>
-            </div>
-          </div>
+  <!-- 2. 独立详情与目录视图 -->
+  <section id="toc-view" class="view">
+    <div class="toc-page">
+      <button class="pill-btn" style="margin-bottom:16px;" onclick="switchView('shelf-view')">← 返回书架</button>
+      <div class="book-hero" id="toc-hero"></div>
+      <div style="font-weight:700; margin-bottom:12px;">章节目录</div>
+      <div id="toc-list"></div>
+    </div>
+  </section>
 
-          <!-- 书本 2 -->
-          <div class="book-card" onclick="openBook('失落的星河')">
-            <div class="book-cover-container">
-              <div class="book-spine-highlight"></div>
-              <img src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=400&q=80" alt="失落的星河" class="book-cover">
-            </div>
-            <div class="book-info">
-              <div class="book-name">失落的星河</div>
-              <div class="book-progress">已读 0%</div>
-            </div>
-          </div>
-
-          <!-- 书本 3 -->
-          <div class="book-card" onclick="openBook('雾城旧事')">
-            <div class="book-cover-container">
-              <div class="book-spine-highlight"></div>
-              <img src="https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=400&q=80" alt="雾城旧事" class="book-cover">
-            </div>
-            <div class="book-info">
-              <div class="book-name">雾城旧事</div>
-              <div class="book-progress">已读 12%</div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      <!-- 2. 目录界面 -->
-      <section id="toc-view" class="view">
-        <button class="back-btn" onclick="navigateTo('shelf-view', '我的书架')">← 书架</button>
-        <div class="toc-title" id="toc-book-title">书名</div>
-        <div class="toc-list" id="toc-chapters">
-          <!-- 动态加载章节 -->
-        </div>
-      </section>
-
-      <!-- 3. 正文界面 -->
-      <section id="reader-view" class="view">
-        <div class="reader-nav">
-          <button class="back-btn" onclick="navigateTo('toc-view', '目录')">← 目录</button>
-          <span style="font-size: 14px; color: var(--text-muted);" id="reader-book-name">书名</span>
-        </div>
-        
-        <div class="reader-chapter-title" id="chapter-title">第1章 · 迷雾中的灯火</div>
-        
-        <!-- 可划线选择的文本区域 -->
-        <article class="reader-body" id="chapter-content" onmouseup="handleTextSelection()" ontouchend="handleTextSelection()">
-          <p>夜幕降临时，雾气已经悄然漫过了街道的转角。马车在碎石路上颠簸，车夫的吆喝声被湿冷的空气包裹，听上去像是从极遥远的地方传来。</p>
-          <p>他裹紧了身上的风衣，手心攥着那封被雨水浸湿了一角的信。信封上的字迹有些潦草，但那枚暗红色的火漆印依然清晰——那是一个展翅的飞蛾标记。</p>
-          <p>“在这个城市里，有些东西是永远不该去探寻的，”车夫突然闷声开口，甚至没有回头。他的声音干枯而沙哑，“尤其是那些只在深夜亮起绿灯的屋子。”</p>
-          <p>他没有答话，只是转头望向车窗外。模糊的街景像是一幅未干的墨水画，只有零星的煤气灯火在雾气里挣扎着，宛如风中残烛。</p>
-        </article>
-
-        <!-- 划线与书签面板 -->
-        <div class="panel-header">划线与想法</div>
-        <div id="highlights-list">
-          <!-- 动态加载划线数据 -->
-        </div>
-      </section>
-
-    </main>
-
-    <!-- 微信读书式划线选择菜单 -->
-    <div id="selection-menu" class="selection-menu">
-      <span onclick="highlightSelection()"><i class="icon">✏️</i> 划线</span>
-      <span onclick="addNote()"><i class="icon">💬</i> 想法</span>
+  <!-- 3. 正文阅读视图 -->
+  <section id="reader-view" class="view">
+    <div class="reader-top-bar">
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button class="pill-btn" onclick="switchView('toc-view')">← 目录</button>
+        <span id="reader-book-title" style="font-weight:600;"></span>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span id="mode-badge" style="font-size:11px; color:var(--text-muted);"></span>
+        <button class="pill-btn" id="bookmark-btn" onclick="toggleChapterBookmark()">🔖</button>
+        <button class="pill-btn" onclick="openSheet('ai-sheet')">✨ AI</button>
+        <button class="pill-btn" onclick="openSheet('settings-sheet')">Aa</button>
+      </div>
     </div>
 
-    <!-- 4. 外观控制抽屉 -->
-    <div id="settings-sheet" class="settings-sheet">
-      <div class="settings-group">
-        <div class="settings-title">主题氛围</div>
-        <div class="btn-row">
-          <button class="config-btn active" id="theme-default" onclick="setTheme('default')">明亮</button>
-          <button class="config-btn" id="theme-warm" onclick="setTheme('warm')">雅致暖色</button>
-          <button class="config-btn" id="theme-dark" onclick="setTheme('dark')">深夜暗黑</button>
+    <div id="reader-gesture-area">
+      <div class="reader-scroll-container" id="reader-scroll-box" onclick="handleReaderTap(event)">
+        <div class="gesture-hint" id="reader-gesture-tip">👉 上下滑动模式：从屏幕左边缘向右滑可拉出 1/3 目录抽屉</div>
+        <div class="chapter-heading" id="reader-chap-title"></div>
+        <article class="chapter-article" id="reader-article"></article>
+
+        <!-- 底部本章想法汇总与上下章切换 -->
+        <div id="chapter-notes-box" style="margin-top:36px;"></div>
+        <div class="chapter-footer-nav">
+          <button class="pill-btn" onclick="stepChapter(-1)">上一章</button>
+          <span id="page-counter" style="font-size:12px; color:var(--text-muted); align-self:center;"></span>
+          <button class="pill-btn primary" onclick="stepChapter(1)">下一章</button>
         </div>
       </div>
+    </div>
+  </section>
 
-      <div class="settings-group">
-        <div class="settings-title">排版字体</div>
-        <div class="btn-row">
-          <button class="config-btn active" id="font-sans" onclick="setFont('sans')">系统黑体</button>
-          <button class="config-btn" id="font-serif" onclick="setFont('serif')">人文衬线</button>
-        </div>
-      </div>
+  <!-- 系列书籍：扇形展开全屏层 -->
+  <div class="fan-overlay" id="fan-overlay" onclick="closeSeriesFan(event)">
+    <div class="fan-header">
+      <div id="fan-series-title" style="font-size:20px; font-weight:700;">系列名称</div>
+      <div style="font-size:12px; opacity:0.75; margin-top:4px;">点击任意分卷阅读 · 点击空白处扇形收回</div>
+    </div>
+    <div class="fan-stage" id="fan-stage"></div>
+  </div>
 
-      <div class="settings-group">
-        <div class="settings-title">文字大小</div>
-        <div class="btn-row">
-          <button class="config-btn" onclick="adjustFontSize(-2)">A- 小</button>
-          <button class="config-btn" onclick="adjustFontSize(2)">A+ 大</button>
-        </div>
-      </div>
+  <!-- 书架底部编辑工具栏 -->
+  <div class="edit-dock" id="edit-dock">
+    <button class="dock-item" onclick="selectAllBooks()"><span class="dock-icon">☑️</span><span>全选</span></button>
+    <button class="dock-item" onclick="batchToggleFav()"><span class="dock-icon">⭐</span><span>收藏</span></button>
+    <button class="dock-item" onclick="batchSetTag()"><span class="dock-icon">🏷️</span><span>标签</span></button>
+    <button class="dock-item" onclick="batchSetGroup()"><span class="dock-icon">📁</span><span>分组</span></button>
+    <button class="dock-item" onclick="batchSetSeries()"><span class="dock-icon">📚</span><span>归入系列</span></button>
+    <button class="dock-item" onclick="openCoverEditor()"><span class="dock-icon">🖼️</span><span>换封面</span></button>
+    <button class="dock-item danger" onclick="batchDeleteBooks()"><span class="dock-icon">🗑️</span><span>删除</span></button>
+  </div>
 
-      <div class="ios-home-indicator" onclick="toggleSettings(false)"></div>
+  <!-- 阅读器手势目录抽屉遮罩 -->
+  <div class="gesture-drawer-backdrop" id="drawer-backdrop" onclick="snapCloseDrawers()"></div>
+
+  <!-- 左侧 1/3 目录抽屉（上下滚动阅读时左滑唤出） -->
+  <aside class="left-toc-drawer" id="left-toc-drawer">
+    <div class="drawer-header">
+      <span>章节目录</span>
+      <span style="font-size:11px; color:var(--text-muted);" onclick="snapCloseDrawers()">关闭 ✕</span>
+    </div>
+    <div class="drawer-list" id="left-drawer-list"></div>
+  </aside>
+
+  <!-- 下侧 1/3 目录抽屉（翻页阅读时上滑唤出） -->
+  <aside class="bottom-toc-drawer" id="bottom-toc-drawer">
+    <div class="drawer-header">
+      <span>章节目录（翻页模式）</span>
+      <span style="font-size:11px; color:var(--text-muted);" onclick="snapCloseDrawers()">关闭 ✕</span>
+    </div>
+    <div class="drawer-list" id="bottom-drawer-list"></div>
+  </aside>
+
+  <!-- 跳转后返回原进度浮动胶囊 -->
+  <div class="return-progress-pill" id="return-pill" onclick="restorePreviousProgress()">
+    <span>↩ 返回原阅读进度</span>
+    <span id="return-pill-label" style="opacity:0.8; font-weight:400;"></span>
+  </div>
+
+  <!-- 长按/选中文字后的划线与想法气泡 -->
+  <div class="selection-toolbar" id="selection-toolbar">
+    <div class="color-dot" style="background:#ffd60a" onclick="applyHighlight('yellow')"></div>
+    <div class="color-dot" style="background:#ff4d6d" onclick="applyHighlight('pink')"></div>
+    <div class="color-dot" style="background:#007aff" onclick="applyHighlight('blue')"></div>
+    <button onclick="applyHighlightWithNote()">💬 写想法</button>
+    <button onclick="sendSelectionToAI()">✨ 问AI</button>
+  </div>
+
+  <!-- 通用遮罩 -->
+  <div class="gesture-drawer-backdrop" id="sheet-backdrop" onclick="closeAllSheets()"></div>
+
+  <!-- 外观与阅读模式设置抽屉 -->
+  <div class="sheet-modal" id="settings-sheet">
+    <div style="font-weight:700; font-size:16px; margin-bottom:14px;">阅读与外观设置</div>
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">翻页方式（决定手势目录方向）</div>
+    <div class="seg-row">
+      <button class="seg-btn active" id="mode-scroll-btn" onclick="setReadMode('scroll')">↕️ 上下滑动 (左滑目录)</button>
+      <button class="seg-btn" id="mode-paged-btn" onclick="setReadMode('paged')">↔️ 左右翻页 (上滑目录)</button>
+    </div>
+
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">背景主题</div>
+    <div class="seg-row">
+      <button class="seg-btn" onclick="setTheme('default')">纯白</button>
+      <button class="seg-btn" onclick="setTheme('warm')">羊皮暖黄</button>
+      <button class="seg-btn" onclick="setTheme('green')">松石护眼</button>
+      <button class="seg-btn" onclick="setTheme('dark')">深夜暗黑</button>
+    </div>
+
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">字体样式</div>
+    <div class="seg-row">
+      <button class="seg-btn" onclick="setFont('sans')">系统黑体</button>
+      <button class="seg-btn" onclick="setFont('serif')">古韵宋体</button>
+      <button class="seg-btn" onclick="setFont('kai')">手写楷体</button>
+    </div>
+
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">字号大小</div>
+    <div class="seg-row">
+      <button class="seg-btn" onclick="changeFontSize(-1)">A- 缩小</button>
+      <button class="seg-btn" onclick="changeFontSize(1)">A+ 放大</button>
     </div>
   </div>
 
+  <!-- 更换封面抽屉 -->
+  <div class="sheet-modal" id="cover-sheet">
+    <div style="font-weight:700; font-size:16px; margin-bottom:12px;">更换选中书籍封面</div>
+    <p style="font-size:12px; color:var(--text-muted); margin-top:0;">
+      方式一：直接从手机/电脑相册选图（保存在浏览器本地）
+    </p>
+    <button class="pill-btn primary" style="width:100%; justify-content:center; padding:11px; margin-bottom:14px;" onclick="document.getElementById('cover-file-input').click()">
+      📷 从相册/本地选择图片
+    </button>
+    <p style="font-size:12px; color:var(--text-muted);">
+      方式二：粘贴 GitHub 图床或网络图片直链（例如 <code>images/my-cover.jpg</code>）
+    </p>
+    <input type="text" id="cover-url-input" class="text-input" placeholder="https://... 或仓库相对路径">
+    <button class="pill-btn" style="width:100%; justify-content:center; padding:11px;" onclick="applyCoverUrl()">确认使用该链接</button>
+  </div>
+
+  <!-- 在线 AI 创作与阅读助手抽屉 -->
+  <div class="sheet-modal" id="ai-sheet">
+    <div style="font-weight:700; font-size:16px; margin-bottom:10px;">✨ 在线 AI 小说助手</div>
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">
+      填入兼容 OpenAI 接口的 API Key（如 DeepSeek / Kimi / OpenAI），仅保存在你当前设备的浏览器本地。
+    </div>
+    <input type="password" id="ai-key-input" class="text-input" placeholder="sk-..." onchange="saveAiConfig()">
+    <input type="text" id="ai-url-input" class="text-input" value="https://api.deepseek.com/v1/chat/completions" placeholder="API Endpoint" onchange="saveAiConfig()">
+    <input type="text" id="ai-model-input" class="text-input" value="deepseek-chat" placeholder="模型名称 (如 deepseek-chat / gpt-4o-mini)" onchange="saveAiConfig()">
+    <textarea id="ai-prompt-input" class="text-input" rows="3" placeholder="输入你的要求，例如：帮我润色这段描写 / 续写接下来的冲突..."></textarea>
+    <div class="seg-row">
+      <button class="seg-btn primary" onclick="runAiAssistant('润色并增强画面感')">✨ 润色文笔</button>
+      <button class="seg-btn" onclick="runAiAssistant('顺着当前情节续写300字')">✍️ 剧情续写</button>
+      <button class="seg-btn" onclick="runAiAssistant('提炼本章核心设定与人物关系')">🔍 设定提炼</button>
+    </div>
+    <div id="ai-output" style="font-size:13px; line-height:1.7; background:var(--surface); padding:12px; border-radius:10px; white-space:pre-wrap; min-height:60px;">等待唤醒 AI...</div>
+  </div>
+
   <script>
-    // 基础数据源
-    const booksData = {
-      '夜巡者手记': ['第1章 · 迷雾中的灯火', '第2章 · 暗处的暗影', '第3章 · 消失的信笺'],
-      '失落的星河': ['第1章 · 太空孤寂', '第2章 · 脉冲星之声', '第3章 · 暗物质边缘'],
-      '雾城旧事': ['第1章 · 钟楼的阴影', '第2章 · 雨中来客', '第3章 · 封存的记忆']
-    };
+    /**************************************************************
+     * 0. 你的 GitHub 仓库小说配置区（如果你把 .md 传到了 GitHub，填在这里自动加载）
+     **************************************************************/
+    const GITHUB_BOOKS = [
+      // 示例：如果你在 GitHub 上传了 novel1.md，取消下面这行的注释即可自动同步给所有访客：
+      // { title: "我的第一部连载", file: "novel1.md", cover: "images/cover1.jpg", group: "连载", series: "主线系列", tags: ["原创"] }
+    ];
 
-    let currentBook = '';
-    let currentChapter = '';
-    let bookmarks = JSON.parse(localStorage.getItem('bookmarks') || '{}');
-    let highlights = JSON.parse(localStorage.getItem('highlights') || '{}');
+    // 初始内置演示书库（支持系列叠放演示）
+    const DEFAULT_BOOKS = [
+      {
+        id: "book_1",
+        title: "雾城夜巡录 · 卷一",
+        cover: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=500&q=80",
+        group: "奇幻",
+        series: "雾城编年史",
+        fav: true,
+        tags: ["蒸汽朋克", "悬疑"],
+        chapters: [
+          {
+            title: "第一章 · 煤气灯下的灰烬",
+            content: "夜雾漫过维多利亚街角的时候，老钟楼恰好敲响第十一下。\n\n他收起黄铜怀表，指尖擦过封皮上微凉的火漆印。在这座终年不见日光的雾城里，每一盏深夜亮起的绿灯都代表着一桩尚未封档的旧案。\n\n“你在看什么？”身后传来羽毛笔划过羊皮纸的沙沙声。\n\n你可以试着长按选中这段文字，体验多彩划线与写想法批注；也可以从屏幕左侧边缘向右滑动，拉出跟随手指的章节目录！"
+          },
+          {
+            title: "第二章 · 发条心脏的停摆",
+            content: "地下铁道的蒸汽阀门发出低沉的喘息。机械师把最后一枚齿轮嵌进胸腔仪，蓝色的电弧在潮湿的空气里一闪而逝。\n\n“如果记忆可以被装进差分机，那么灵魂的重量大概只有二十一克黄铜。”他低声写下这行笔记。\n\n当你从手势目录跳转到这一章时，注意看屏幕底部浮现的「返回原阅读进度」按钮，点击它能随时回到跳转前的章节与滚动位置。"
+          },
+          {
+            title: "第三章 · 钟摆尽头的信使",
+            content: "黎明前的雨最冷。信使穿过圣三一教堂长长的回廊，靴跟在石板上敲出清脆的回响。信封里只有一张空白的船票，目的地写着早已被海图抹去的群岛。"
+          }
+        ]
+      },
+      {
+        id: "book_2",
+        title: "雾城夜巡录 · 卷二：白银黎明",
+        cover: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=500&q=80",
+        group: "奇幻",
+        series: "雾城编年史",
+        fav: false,
+        tags: ["蒸汽朋克"],
+        chapters: [
+          {
+            title: "第一章 · 飞艇与北风",
+            content: "这是《雾城编年史》系列的第二卷。因为在书架上它与卷一属于同一个「系列」，所以它们在书架上会自动上下错位叠放，点击后扇形展开！"
+          },
+          {
+            title: "第二章 · 极光下的冰原",
+            content: "北纬七十度的天空燃烧着幽绿色的极光，探险队的履带车在冰裂隙边缘停驻。"
+          }
+        ]
+      },
+      {
+        id: "book_3",
+        title: "雾城夜巡录 · 卷三：终局",
+        cover: "https://images.unsplash.com/photo-1509021436665-8f07dbf5bf1d?auto=format&fit=crop&w=500&q=80",
+        group: "奇幻",
+        series: "雾城编年史",
+        fav: true,
+        tags: ["完结篇"],
+        chapters: [
+          {
+            title: "终章 · 当雾气散尽",
+            content: "百年未见的阳光第一次刺破云层，照亮了钟楼顶端生锈的风向标。所有的手稿都被锁进了档案局最深处的樟木匣。"
+          }
+        ]
+      },
+      {
+        id: "book_4",
+        title: "长安花信风",
+        cover: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=500&q=80",
+        group: "古风",
+        series: "",
+        fav: false,
+        tags: ["古典", "刀马旦"],
+        chapters: [
+          {
+            title: "第一折 · 曲江春宴",
+            content: "暮春三月的曲江池畔，柳絮如雪。画舫上的琵琶声刚落，一袭红衣的女子便提剑跃上了船头，眉眼间尽是盛唐的风流与飒爽。"
+          },
+          {
+            title: "第二折 · 朱雀门夜雨",
+            content: "宫灯在夜雨里摇晃，长街如水。她勒住黑马，回望了一眼高耸入云的明德门。"
+          }
+        ]
+      }
+    ];
 
-    // 页面跳转控制器
-    function navigateTo(viewId, title) {
-      document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
-      document.getElementById(viewId).classList.add('active');
-      document.getElementById('nav-title').textContent = title;
-      
-      // 控制阅读器专属工具按钮
-      const isReader = (viewId === 'reader-view');
-      document.getElementById('bookmark-indicator').style.display = isReader ? 'inline-block' : 'none';
-      if(isReader) {
-        updateBookmarkUI();
-        loadHighlights();
+    // 状态管理
+    let books = JSON.parse(localStorage.getItem("pro_books_v2") || "null") || DEFAULT_BOOKS;
+    let annotations = JSON.parse(localStorage.getItem("pro_notes_v2") || "{}");
+    let bookmarks = JSON.parse(localStorage.getItem("pro_bookmarks_v2") || "{}");
+
+    let currentFilter = "全部";
+    let isEditMode = false;
+    let selectedBookIds = new Set();
+    let longPressTimer = null;
+
+    // 当前阅读状态
+    let activeBookId = null;
+    let activeChapIdx = 0;
+    let readMode = localStorage.getItem("pro_read_mode") || "scroll"; // 'scroll' | 'paged'
+    let currentPageIdx = 0;
+    let totalPages = 1;
+    let previousProgress = null; // 记录目录跳转前的进度 { bookId, chapIdx, scrollTop, pageIdx }
+
+    function saveBooks() {
+      localStorage.setItem("pro_books_v2", JSON.stringify(books));
+    }
+
+    // 初始化
+    window.addEventListener("DOMContentLoaded", async () => {
+      loadAiConfig();
+      setReadMode(readMode, true);
+      await syncGithubMarkdownBooks();
+      renderFilterBar();
+      renderShelf();
+      initReaderTouchGestures();
+      initSelectionWatcher();
+    });
+
+    // 自动拉取用户在 GITHUB_BOOKS 中配置的 .md 文件
+    async function syncGithubMarkdownBooks() {
+      for (const item of GITHUB_BOOKS) {
+        if (books.some(b => b.file === item.file)) continue;
+        try {
+          const res = await fetch(item.file);
+          if (!res.ok) continue;
+          const text = await res.text();
+          const parsedChaps = splitTextIntoChapters(text, item.title);
+          books.unshift({
+            id: "gh_" + item.file,
+            file: item.file,
+            title: item.title,
+            cover: item.cover || "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=500&q=80",
+            group: item.group || "未分组",
+            series: item.series || "",
+            fav: false,
+            tags: item.tags || [],
+            chapters: parsedChaps
+          });
+          saveBooks();
+        } catch (e) { console.warn("GitHub 文件读取跳过:", e); }
       }
     }
 
-    // 打开书本进入目录
-    function openBook(bookName) {
-      currentBook = bookName;
-      document.getElementById('toc-book-title').textContent = bookName;
-      
-      const chaptersList = document.getElementById('toc-chapters');
-      chaptersList.innerHTML = '';
-      
-      booksData[bookName].forEach(chapter => {
-        const item = document.createElement('div');
-        item.className = 'toc-item';
-        item.innerHTML = `<span>${chapter}</span><span style="color:var(--text-muted); font-size: 13px;">→</span>`;
-        item.onclick = () => openChapter(chapter);
-        chaptersList.appendChild(item);
+    /**************************************************************
+     * 1. 书架渲染（支持分组过滤、系列错位叠放、长按进入编辑）
+     **************************************************************/
+    function renderFilterBar() {
+      const bar = document.getElementById("filter-bar");
+      const groups = new Set(["全部", "⭐ 收藏"]);
+      books.forEach(b => {
+        if (b.group) groups.add("📁 " + b.group);
+        (b.tags || []).forEach(t => groups.add("# " + t));
+      });
+      bar.innerHTML = "";
+      groups.forEach(g => {
+        const chip = document.createElement("div");
+        chip.className = "filter-chip" + (currentFilter === g ? " active" : "");
+        chip.textContent = g;
+        chip.onclick = () => {
+          currentFilter = g;
+          renderFilterBar();
+          renderShelf();
+        };
+        bar.appendChild(chip);
+      });
+    }
+
+    function renderShelf() {
+      const grid = document.getElementById("shelf-grid");
+      grid.className = "shelf-grid" + (isEditMode ? " editing" : "");
+      grid.innerHTML = "";
+
+      // 过滤书籍
+      const filtered = books.filter(b => {
+        if (currentFilter === "全部") return true;
+        if (currentFilter === "⭐ 收藏") return b.fav;
+        if (currentFilter.startsWith("📁 ")) return b.group === currentFilter.slice(2).trim();
+        if (currentFilter.startsWith("# ")) return (b.tags || []).includes(currentFilter.slice(2).trim());
+        return true;
       });
 
-      navigateTo('toc-view', '目录');
+      // 非编辑模式下：将同一个 series 的书聚合成一个叠放卡片
+      const renderedSeries = new Set();
+
+      filtered.forEach(book => {
+        if (!isEditMode && book.series && book.series.trim() !== "") {
+          if (renderedSeries.has(book.series)) return;
+          const seriesBooks = filtered.filter(b => b.series === book.series);
+          if (seriesBooks.length > 1) {
+            renderedSeries.add(book.series);
+            grid.appendChild(createSeriesStackCard(book.series, seriesBooks));
+            return;
+          }
+        }
+        grid.appendChild(createSingleBookCard(book));
+      });
     }
 
-    // 进入章节
-    function openChapter(chapterName) {
-      currentChapter = chapterName;
-      document.getElementById('reader-book-name').textContent = currentBook;
-      document.getElementById('chapter-title').textContent = chapterName;
-      navigateTo('reader-view', '阅读正文');
+    function createSingleBookCard(book) {
+      const card = document.createElement("div");
+      card.className = "book-card" + (selectedBookIds.has(book.id) ? " selected" : "");
+      
+      const tagsHtml = (book.tags || []).slice(0, 2).map(t => `<span class="mini-tag">#${t}</span>`).join("");
+      card.innerHTML = `
+        <div class="cover-wrap">
+          <div class="spine-line"></div>
+          ${book.fav ? `<div class="fav-badge">★</div>` : ""}
+          <div class="select-check">${selectedBookIds.has(book.id) ? "✓" : ""}</div>
+          <img class="cover-img" src="${book.cover}" alt="${book.title}">
+        </div>
+        <div class="book-title-label">${book.title}</div>
+        <div class="book-sub-meta">
+          <span>${book.group || "未分组"}</span>
+          ${tagsHtml}
+        </div>
+      `;
+
+      bindCardEvents(card, () => {
+        if (isEditMode) {
+          toggleSelectBook(book.id);
+        } else {
+          openBookDetail(book.id);
+        }
+      }, book.id);
+
+      return card;
     }
 
-    // 5. iOS 抽屉控制
-    function toggleSettings(show) {
-      const sheet = document.getElementById('settings-sheet');
-      const backdrop = document.getElementById('backdrop');
-      if(show) {
-        sheet.classList.add('active');
-        backdrop.classList.add('active');
-      } else {
-        sheet.classList.remove('active');
-        backdrop.classList.remove('active');
+    // 创建系列上下错位叠放卡片
+    function createSeriesStackCard(seriesName, seriesBooks) {
+      const topBook = seriesBooks[0];
+      const secondBook = seriesBooks[1] || topBook;
+      const thirdBook = seriesBooks[2] || secondBook;
+
+      const card = document.createElement("div");
+      card.className = "book-card series-stack";
+      card.innerHTML = `
+        <div class="cover-wrap">
+          <div class="stack-layer-2" style="background-image:url('${thirdBook.cover}')"></div>
+          <div class="stack-layer-1" style="background-image:url('${secondBook.cover}')"></div>
+          <div class="spine-line"></div>
+          <div class="series-badge">📚 系列 · ${seriesBooks.length}册</div>
+          <img class="cover-img" src="${topBook.cover}" alt="${seriesName}">
+        </div>
+        <div class="book-title-label">【系列】${seriesName}</div>
+        <div class="book-sub-meta"><span>共 ${seriesBooks.length} 部作品 · 点击扇形展开</span></div>
+      `;
+
+      bindCardEvents(card, () => openSeriesFan(seriesName, seriesBooks), topBook.id);
+      return card;
+    }
+
+    // 绑定长按进入编辑模式 + 点击事件
+    function bindCardEvents(el, onClickAction, bookId) {
+      let pressTriggered = false;
+      const startPress = () => {
+        pressTriggered = false;
+        longPressTimer = setTimeout(() => {
+          pressTriggered = true;
+          if (!isEditMode) toggleEditMode(true);
+          if (bookId) toggleSelectBook(bookId);
+          if (navigator.vibrate) navigator.vibrate(30);
+        }, 520);
+      };
+      const cancelPress = () => clearTimeout(longPressTimer);
+
+      el.addEventListener("touchstart", startPress, { passive: true });
+      el.addEventListener("touchend", cancelPress);
+      el.addEventListener("touchmove", cancelPress);
+      el.addEventListener("mousedown", startPress);
+      el.addEventListener("mouseup", cancelPress);
+      el.addEventListener("mouseleave", cancelPress);
+
+      el.addEventListener("click", (e) => {
+        if (pressTriggered) { e.preventDefault(); return; }
+        onClickAction();
+      });
+    }
+
+    /**************************************************************
+     * 2. 系列书籍：扇形展开与扇形收回动效
+     **************************************************************/
+    function openSeriesFan(seriesName, seriesBooks) {
+      const overlay = document.getElementById("fan-overlay");
+      const stage = document.getElementById("fan-stage");
+      document.getElementById("fan-series-title").textContent = `📚 ${seriesName}（共 ${seriesBooks.length} 册）`;
+      stage.innerHTML = "";
+
+      const count = seriesBooks.length;
+      const maxSpreadAngle = Math.min(68, (count - 1) * 20); // 扇形总张角
+
+      seriesBooks.forEach((book, idx) => {
+        const fCard = document.createElement("div");
+        fCard.className = "fan-card";
+        fCard.innerHTML = `
+          <img src="${book.cover}" alt="${book.title}">
+          <div class="fan-card-title">${book.title}</div>
+        `;
+        fCard.onclick = (e) => {
+          e.stopPropagation();
+          closeSeriesFan(null, () => openBookDetail(book.id));
+        };
+        stage.appendChild(fCard);
+
+        // 触发扇形展开动画
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            const ratio = count === 1 ? 0 : (idx / (count - 1)) - 0.5;
+            const angle = ratio * maxSpreadAngle;
+            const offsetX = ratio * Math.min(180, count * 42);
+            const offsetY = Math.abs(ratio) * 22;
+            fCard.style.opacity = "1";
+            fCard.style.transform = `translate(${offsetX}px, ${offsetY}px) rotate(${angle}deg) scale(1)`;
+            fCard.style.zIndex = String(10 + idx);
+          }, 30);
+        });
+      });
+
+      overlay.classList.add("open");
+    }
+
+    function closeSeriesFan(e, callback) {
+      const overlay = document.getElementById("fan-overlay");
+      const cards = overlay.querySelectorAll(".fan-card");
+      // 先扇形聚拢收回
+      cards.forEach(c => {
+        c.style.transform = `translate(0px, 15px) rotate(0deg) scale(0.75)`;
+        c.style.opacity = "0";
+      });
+      setTimeout(() => {
+        overlay.classList.remove("open");
+        if (callback) callback();
+      }, 320);
+    }
+
+    /**************************************************************
+     * 3. 书架批量编辑功能（全选/删除/收藏/标签/分组/归入系列/换封面）
+     **************************************************************/
+    function toggleEditMode(forceState) {
+      isEditMode = typeof forceState === "boolean" ? forceState : !isEditMode;
+      if (!isEditMode) selectedBookIds.clear();
+      document.getElementById("edit-mode-btn").textContent = isEditMode ? "完成" : "整理";
+      document.getElementById("edit-mode-btn").classList.toggle("primary", isEditMode);
+      document.getElementById("edit-dock").classList.toggle("show", isEditMode);
+      renderShelf();
+    }
+
+    function toggleSelectBook(id) {
+      if (selectedBookIds.has(id)) selectedBookIds.delete(id);
+      else selectedBookIds.add(id);
+      renderShelf();
+    }
+
+    function selectAllBooks() {
+      if (selectedBookIds.size === books.length) selectedBookIds.clear();
+      else books.forEach(b => selectedBookIds.add(b.id));
+      renderShelf();
+    }
+
+    function requireSelection() {
+      if (selectedBookIds.size === 0) {
+        alert("请先点击勾选至少一本书籍！");
+        return false;
+      }
+      return true;
+    }
+
+    function batchToggleFav() {
+      if (!requireSelection()) return;
+      books.forEach(b => { if (selectedBookIds.has(b.id)) b.fav = !b.fav; });
+      saveBooks(); renderFilterBar(); renderShelf();
+    }
+
+    function batchSetTag() {
+      if (!requireSelection()) return;
+      const input = prompt("请输入标签（多个标签用逗号分隔，留空则清空标签）：", "连载, 设定集");
+      if (input === null) return;
+      const tags = input.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+      books.forEach(b => { if (selectedBookIds.has(b.id)) b.tags = tags; });
+      saveBooks(); renderFilterBar(); renderShelf();
+    }
+
+    function batchSetGroup() {
+      if (!requireSelection()) return;
+      const g = prompt("请输入分组名称（例如：古风 / 奇幻 / 脑洞）：", "奇幻");
+      if (g === null) return;
+      books.forEach(b => { if (selectedBookIds.has(b.id)) b.group = g.trim() || "未分组"; });
+      saveBooks(); renderFilterBar(); renderShelf();
+    }
+
+    function batchSetSeries() {
+      if (!requireSelection()) return;
+      const s = prompt("请输入系列名称（同一系列的书将在书架上下错位叠放，留空则移出系列）：", "雾城编年史");
+      if (s === null) return;
+      books.forEach(b => { if (selectedBookIds.has(b.id)) b.series = s.trim(); });
+      saveBooks();
+      toggleEditMode(false); // 自动退出编辑模式以展示系列叠放效果
+    }
+
+    function batchDeleteBooks() {
+      if (!requireSelection()) return;
+      if (!confirm(`确定要从书架删除选中的 ${selectedBookIds.size} 本书吗？`)) return;
+      books = books.filter(b => !selectedBookIds.has(b.id));
+      selectedBookIds.clear();
+      saveBooks(); renderFilterBar(); renderShelf();
+    }
+
+    function openCoverEditor() {
+      if (!requireSelection()) return;
+      openSheet("cover-sheet");
+    }
+
+    function handleCoverFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        books.forEach(b => { if (selectedBookIds.has(b.id)) b.cover = reader.result; });
+        saveBooks(); renderShelf(); closeAllSheets();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function applyCoverUrl() {
+      const url = document.getElementById("cover-url-input").value.trim();
+      if (!url) return;
+      books.forEach(b => { if (selectedBookIds.has(b.id)) b.cover = url; });
+      saveBooks(); renderShelf(); closeAllSheets();
+    }
+
+    /**************************************************************
+     * 4. 导入本地小说 (.md / .txt / .epub)
+     **************************************************************/
+    function triggerImport() {
+      document.getElementById("book-file-input").click();
+    }
+
+    async function handleFilesImport(e) {
+      const files = Array.from(e.target.files || []);
+      for (const file of files) {
+        const ext = file.name.split(".").pop().toLowerCase();
+        const rawTitle = file.name.replace(/\.[^/.]+$/, "");
+
+        if (ext === "epub") {
+          await importEpubFile(file, rawTitle);
+        } else {
+          const text = await file.text();
+          const chapters = splitTextIntoChapters(text, rawTitle);
+          books.unshift({
+            id: "local_" + Date.now() + Math.random().toString(36).slice(2, 6),
+            title: rawTitle,
+            cover: "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=500&q=80",
+            group: "本地导入",
+            series: "",
+            fav: false,
+            tags: [ext.toUpperCase()],
+            chapters
+          });
+        }
+      }
+      saveBooks(); renderFilterBar(); renderShelf();
+      e.target.value = "";
+    }
+
+    // 智能按 Markdown 标题或“第X章”切分章节
+    function splitTextIntoChapters(text, fallbackTitle) {
+      const lines = text.split(/\r?\n/);
+      const chapters = [];
+      let currTitle = "正文";
+      let currBuffer = [];
+
+      const chapRegex = /^(#{1,3}\s+.+|第[零一二三四五六七八九十百千万0-9]+[章回节卷折].*)$/;
+
+      for (const line of lines) {
+        if (chapRegex.test(line.trim())) {
+          if (currBuffer.join("").trim().length > 0) {
+            chapters.push({ title: currTitle, content: currBuffer.join("\n").trim() });
+          }
+          currTitle = line.trim().replace(/^#{1,3}\s+/, "");
+          currBuffer = [];
+        } else {
+          currBuffer.push(line);
+        }
+      }
+      if (currBuffer.join("").trim().length > 0) {
+        chapters.push({ title: currTitle, content: currBuffer.join("\n").trim() });
+      }
+      return chapters.length > 0 ? chapters : [{ title: fallbackTitle, content: text }];
+    }
+
+    // 浏览器端直接解析 EPUB 电子书
+    async function importEpubFile(file, fallbackTitle) {
+      try {
+        const zip = await JSZip.loadAsync(file);
+        let bookTitle = fallbackTitle;
+        const chapters = [];
+
+        // 查找所有 xhtml / html 章节文件
+        const htmlFiles = Object.keys(zip.files).filter(name => /\.(xhtml|html|htm)$/i.test(name)).sort();
+        for (const path of htmlFiles) {
+          const rawHtml = await zip.files[path].async("string");
+          const doc = new DOMParser().parseFromString(rawHtml, "text/html");
+          const heading = doc.querySelector("h1, h2, h3, title");
+          const title = heading && heading.textContent.trim() ? heading.textContent.trim() : `章节 ${chapters.length + 1}`;
+          const paragraphs = Array.from(doc.querySelectorAll("p")).map(p => p.textContent.trim()).filter(Boolean);
+          const bodyText = paragraphs.length > 0 ? paragraphs.join("\n\n") : (doc.body ? doc.body.innerText.trim() : "");
+          if (bodyText.length > 20) {
+            chapters.push({ title, content: bodyText });
+          }
+        }
+
+        books.unshift({
+          id: "epub_" + Date.now(),
+          title: bookTitle,
+          cover: "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&w=500&q=80",
+          group: "EPUB",
+          series: "",
+          fav: false,
+          tags: ["EPUB"],
+          chapters: chapters.length ? chapters : [{ title: "全文", content: "EPUB 解析完成，但未检测到标准段落。" }]
+        });
+      } catch (err) {
+        alert("EPUB 解析失败：" + err.message);
       }
     }
 
-    // 设置外观函数
+    /**************************************************************
+     * 5. 目录页与正文阅读器（支持上下滑动 & 左右翻页）
+     **************************************************************/
+    function switchView(viewId) {
+      document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+      document.getElementById(viewId).classList.add("active");
+      document.getElementById("main-header").style.display = (viewId === "reader-view") ? "none" : "flex";
+      window.scrollTo(0, 0);
+    }
+
+    function getActiveBook() {
+      return books.find(b => b.id === activeBookId) || books[0];
+    }
+
+    function openBookDetail(bookId) {
+      activeBookId = bookId;
+      const book = getActiveBook();
+      document.getElementById("toc-hero").innerHTML = `
+        <img src="${book.cover}" alt="${book.title}">
+        <div style="display:flex; flex-direction:column; justify-content:space-between;">
+          <div>
+            <div style="font-size:18px; font-weight:700;">${book.title}</div>
+            <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">
+              分组：${book.group || "未分组"} ${book.series ? `· 系列：${book.series}` : ""}
+            </div>
+          </div>
+          <button class="pill-btn primary" style="align-self:flex-start;" onclick="openChapter(0)">开始阅读</button>
+        </div>
+      `;
+
+      const list = document.getElementById("toc-list");
+      list.innerHTML = "";
+      book.chapters.forEach((ch, idx) => {
+        const row = document.createElement("div");
+        row.className = "toc-item";
+        const bmKey = `${book.id}_${idx}`;
+        row.innerHTML = `
+          <span>${ch.title}</span>
+          <span style="font-size:12px; color:var(--text-muted);">${bookmarks[bmKey] ? "🔖 已加书签" : "→"}</span>
+        `;
+        row.onclick = () => openChapter(idx);
+        list.appendChild(row);
+      });
+
+      switchView("toc-view");
+    }
+
+    function openChapter(chapIdx, isFromDrawerJump = false) {
+      const book = getActiveBook();
+      if (!book || chapIdx < 0 || chapIdx >= book.chapters.length) return;
+
+      // 如果是从手势目录跳转，保存原阅读进度以便随时一键返回
+      if (isFromDrawerJump && chapIdx !== activeChapIdx) {
+        previousProgress = {
+          bookId: activeBookId,
+          chapIdx: activeChapIdx,
+          chapTitle: book.chapters[activeChapIdx]?.title || "",
+          scrollTop: window.scrollY,
+          pageIdx: currentPageIdx
+        };
+        const pill = document.getElementById("return-pill");
+        document.getElementById("return-pill-label").textContent = `(${previousProgress.chapTitle.slice(0, 8)}...)`;
+        pill.classList.add("show");
+      }
+
+      activeChapIdx = chapIdx;
+      currentPageIdx = 0;
+      const chap = book.chapters[chapIdx];
+
+      document.getElementById("reader-book-title").textContent = book.title;
+      document.getElementById("reader-chap-title").textContent = chap.title;
+
+      // 渲染正文（支持 Markdown 图片语法 ![alt](url) 与段落）
+      const article = document.getElementById("reader-article");
+      const rawParas = chap.content.split(/\n+/).filter(Boolean);
+      article.innerHTML = rawParas.map((p, pIdx) => {
+        const imgMatch = p.trim().match(/^!\[(.*?)\]\((.*?)\)$/);
+        if (imgMatch) {
+          return `<img src="${imgMatch[2]}" alt="${imgMatch[1]}">`;
+        }
+        return `<p data-pidx="${pIdx}">${renderHighlightedParagraph(p, `${book.id}_${chapIdx}`, pIdx)}</p>`;
+      }).join("");
+
+      updateBookmarkBtn();
+      renderChapterNotesList();
+      renderDrawerLists();
+      switchView("reader-view");
+
+      setTimeout(() => updatePaginationLayout(), 60);
+    }
+
+    function restorePreviousProgress() {
+      if (!previousProgress) return;
+      const prev = previousProgress;
+      previousProgress = null;
+      document.getElementById("return-pill").classList.remove("show");
+      openChapter(prev.chapIdx, false);
+      setTimeout(() => {
+        if (readMode === "scroll") window.scrollTo({ top: prev.scrollTop, behavior: "smooth" });
+        else goToPage(prev.pageIdx);
+      }, 100);
+    }
+
+    function stepChapter(delta) {
+      const book = getActiveBook();
+      const next = activeChapIdx + delta;
+      if (next < 0) { alert("已经是第一章了"); return; }
+      if (next >= book.chapters.length) { alert("已经是最后一章了"); return; }
+      openChapter(next);
+    }
+
+    // 切换「上下滑动」与「左右翻页」模式
+    function setReadMode(mode, skipSave = false) {
+      readMode = mode;
+      if (!skipSave) localStorage.setItem("pro_read_mode", mode);
+
+      const readerView = document.getElementById("reader-view");
+      readerView.classList.toggle("reader-mode-paged", mode === "paged");
+
+      document.getElementById("mode-scroll-btn").classList.toggle("active", mode === "scroll");
+      document.getElementById("mode-paged-btn").classList.toggle("active", mode === "paged");
+      document.getElementById("mode-badge").textContent = mode === "scroll" ? "上下滑动" : "左右翻页";
+      document.getElementById("reader-gesture-tip").textContent = mode === "scroll"
+        ? "👉 上下滑动模式：从屏幕左边缘向右滑拉出左侧 1/3 目录（可随时打断撤回）"
+        : "👆 左右翻页模式：点击左右侧或滑动翻页；从底部边缘向上滑拉出下侧 1/3 目录";
+
+      currentPageIdx = 0;
+      updatePaginationLayout();
+    }
+
+    function updatePaginationLayout() {
+      const box = document.getElementById("reader-scroll-box");
+      if (readMode === "scroll") {
+        box.style.transform = "none";
+        document.getElementById("page-counter").textContent = `第 ${activeChapIdx + 1} 章`;
+      } else {
+        const pageWidth = window.innerWidth - 48 + 48; // column-width + gap
+        totalPages = Math.max(1, Math.ceil(box.scrollWidth / pageWidth));
+        goToPage(currentPageIdx);
+      }
+    }
+
+    function goToPage(idx) {
+      const box = document.getElementById("reader-scroll-box");
+      currentPageIdx = Math.max(0, Math.min(totalPages - 1, idx));
+      const shift = currentPageIdx * window.innerWidth;
+      box.style.transform = `translateX(-${shift}px)`;
+      document.getElementById("page-counter").textContent = `第 ${currentPageIdx + 1} / ${totalPages} 页`;
+    }
+
+    function handleReaderTap(e) {
+      if (readMode !== "paged") return;
+      if (window.getSelection().toString().trim().length > 0) return;
+      const x = e.clientX;
+      const w = window.innerWidth;
+      if (x < w * 0.3) {
+        if (currentPageIdx > 0) goToPage(currentPageIdx - 1);
+        else stepChapter(-1);
+      } else if (x > w * 0.7) {
+        if (currentPageIdx < totalPages - 1) goToPage(currentPageIdx + 1);
+        else stepChapter(1);
+      }
+    }
+
+    /**************************************************************
+     * 6. 核心交互第4条：跟手可随时打断撤回的 1/3 目录抽屉手势
+     * - 上下滑动阅读时：从左向右滑出左侧 1/3 目录
+     * - 左右翻页阅读时：从下向上滑出底部 1/3 目录
+     **************************************************************/
+    function renderDrawerLists() {
+      const book = getActiveBook();
+      if (!book) return;
+      const html = book.chapters.map((c, idx) => `
+        <div class="drawer-chap-item ${idx === activeChapIdx ? "current" : ""}" onclick="onDrawerSelectChapter(${idx})">
+          ${c.title}
+        </div>
+      `).join("");
+      document.getElementById("left-drawer-list").innerHTML = html;
+      document.getElementById("bottom-drawer-list").innerHTML = html;
+    }
+
+    function onDrawerSelectChapter(idx) {
+      snapCloseDrawers();
+      openChapter(idx, true);
+    }
+
+    let leftOpen = false;
+    let bottomOpen = false;
+
+    function initReaderTouchGestures() {
+      const leftDrawer = document.getElementById("left-toc-drawer");
+      const bottomDrawer = document.getElementById("bottom-toc-drawer");
+      const backdrop = document.getElementById("drawer-backdrop");
+
+      let startX = 0, startY = 0;
+      let trackingMode = null; // 'left-drawer' | 'bottom-drawer' | 'page-swipe'
+      let drawerProgress = 0;
+
+      window.addEventListener("touchstart", (e) => {
+        const readerActive = document.getElementById("reader-view").classList.contains("active");
+        if (!readerActive) return;
+
+        const t = e.touches[0];
+        startX = t.clientX;
+        startY = t.clientY;
+        trackingMode = null;
+
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+
+        if (readMode === "scroll") {
+          // 上下滑动模式：仅允许左侧边缘拉出左目录，或已打开时往回推
+          if (!leftOpen && startX < Math.min(48, w * 0.14)) {
+            trackingMode = "left-drawer";
+            leftDrawer.style.transition = "none";
+          } else if (leftOpen) {
+            trackingMode = "left-drawer";
+            leftDrawer.style.transition = "none";
+          }
+        } else if (readMode === "paged") {
+          // 翻页模式：底部边缘上滑拉出下侧 1/3 目录，否则左右滑翻页
+          if (!bottomOpen && startY > h - Math.min(65, h * 0.14)) {
+            trackingMode = "bottom-drawer";
+            bottomDrawer.style.transition = "none";
+          } else if (bottomOpen) {
+            trackingMode = "bottom-drawer";
+            bottomDrawer.style.transition = "none";
+          } else {
+            trackingMode = "page-swipe";
+          }
+        }
+      }, { passive: true });
+
+      window.addEventListener("touchmove", (e) => {
+        if (!trackingMode) return;
+        const t = e.touches[0];
+        const dx = t.clientX - startX;
+        const dy = t.clientY - startY;
+
+        if (trackingMode === "left-drawer") {
+          const drawerW = leftDrawer.offsetWidth || 260;
+          if (!leftOpen && Math.abs(dy) > Math.abs(dx) * 1.3 && dx < 15) {
+            trackingMode = null; return;
+          }
+          const base = leftOpen ? drawerW : 0;
+          const currentX = Math.max(0, Math.min(drawerW, base + dx));
+          drawerProgress = currentX / drawerW;
+          leftDrawer.style.transform = `translateX(${currentX - drawerW}px)`;
+          backdrop.style.opacity = String(drawerProgress * 0.85);
+          backdrop.classList.add("visible");
+        } else if (trackingMode === "bottom-drawer") {
+          const drawerH = bottomDrawer.offsetHeight || 260;
+          const base = bottomOpen ? drawerH : 0;
+          const currentY = Math.max(0, Math.min(drawerH, base - dy));
+          drawerProgress = currentY / drawerH;
+          bottomDrawer.style.transform = `translateY(${drawerH - currentY}px)`;
+          backdrop.style.opacity = String(drawerProgress * 0.85);
+          backdrop.classList.add("visible");
+        }
+      }, { passive: true });
+
+      window.addEventListener("touchend", (e) => {
+        if (!trackingMode) return;
+        const endT = e.changedTouches[0];
+        const dx = endT.clientX - startX;
+
+        if (trackingMode === "left-drawer") {
+          leftDrawer.style.transition = "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)";
+          if (drawerProgress > 0.38) {
+            leftOpen = true;
+            leftDrawer.style.transform = "translateX(0%)";
+            backdrop.style.opacity = "1";
+          } else {
+            snapCloseDrawers();
+          }
+        } else if (trackingMode === "bottom-drawer") {
+          bottomDrawer.style.transition = "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)";
+          if (drawerProgress > 0.35) {
+            bottomOpen = true;
+            bottomDrawer.style.transform = "translateY(0%)";
+            backdrop.style.opacity = "1";
+          } else {
+            snapCloseDrawers();
+          }
+        } else if (trackingMode === "page-swipe") {
+          if (dx < -45) {
+            if (currentPageIdx < totalPages - 1) goToPage(currentPageIdx + 1);
+            else stepChapter(1);
+          } else if (dx > 45) {
+            if (currentPageIdx > 0) goToPage(currentPageIdx - 1);
+            else stepChapter(-1);
+          }
+        }
+        trackingMode = null;
+      });
+    }
+
+    function snapCloseDrawers() {
+      const leftDrawer = document.getElementById("left-toc-drawer");
+      const bottomDrawer = document.getElementById("bottom-toc-drawer");
+      const backdrop = document.getElementById("drawer-backdrop");
+      leftOpen = false;
+      bottomOpen = false;
+      leftDrawer.style.transition = "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)";
+      bottomDrawer.style.transition = "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)";
+      leftDrawer.style.transform = "translateX(-100%)";
+      bottomDrawer.style.transform = "translateY(100%)";
+      backdrop.style.opacity = "0";
+      backdrop.classList.remove("visible");
+    }
+
+    /**************************************************************
+     * 7. 书签、长按划线与写想法功能
+     **************************************************************/
+    function toggleChapterBookmark() {
+      const key = `${activeBookId}_${activeChapIdx}`;
+      if (bookmarks[key]) delete bookmarks[key];
+      else bookmarks[key] = Date.now();
+      localStorage.setItem("pro_bookmarks_v2", JSON.stringify(bookmarks));
+      updateBookmarkBtn();
+    }
+
+    function updateBookmarkBtn() {
+      const key = `${activeBookId}_${activeChapIdx}`;
+      document.getElementById("bookmark-btn").textContent = bookmarks[key] ? "🔖 已签" : "🔖";
+    }
+
+    let cachedSelectedText = "";
+
+    function initSelectionWatcher() {
+      const checkSel = () => {
+        const sel = window.getSelection();
+        const text = sel ? sel.toString().trim() : "";
+        const toolbar = document.getElementById("selection-toolbar");
+        if (text.length > 0 && document.getElementById("reader-article").contains(sel.anchorNode)) {
+          cachedSelectedText = text;
+          const rect = sel.getRangeAt(0).getBoundingClientRect();
+          toolbar.style.display = "flex";
+          toolbar.style.top = `${Math.max(12, rect.top - 52)}px`;
+          toolbar.style.left = `${Math.max(12, Math.min(window.innerWidth - 250, rect.left))}px`;
+        }
+      };
+      document.addEventListener("selectionchange", checkSel);
+      document.addEventListener("touchend", () => setTimeout(checkSel, 80));
+    }
+
+    function applyHighlight(color, noteText = "") {
+      const text = cachedSelectedText || window.getSelection().toString().trim();
+      if (!text) return;
+      const key = `${activeBookId}_${activeChapIdx}`;
+      if (!annotations[key]) annotations[key] = [];
+      annotations[key].push({
+        id: "hl_" + Date.now(),
+        text,
+        color: color || "yellow",
+        note: noteText,
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      });
+      localStorage.setItem("pro_notes_v2", JSON.stringify(annotations));
+      document.getElementById("selection-toolbar").style.display = "none";
+      window.getSelection().removeAllRanges();
+      openChapter(activeChapIdx, false);
+    }
+
+    function applyHighlightWithNote() {
+      const text = cachedSelectedText || window.getSelection().toString().trim();
+      if (!text) return;
+      const note = prompt(`针对「${text.slice(0, 20)}...」写下你的想法感悟：`);
+      if (note === null) return;
+      applyHighlight("yellow", note.trim());
+    }
+
+    function renderHighlightedParagraph(paraText, chapKey, pIdx) {
+      let safe = paraText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const list = annotations[chapKey] || [];
+      list.forEach(item => {
+        if (!item.text) return;
+        const escaped = item.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const cls = `hl-span hl-${item.color || "yellow"} ${item.note ? "hl-has-note" : ""}`;
+        safe = safe.replace(new RegExp(escaped, "g"), `<span class="${cls}" onclick="inspectNote('${chapKey}','${item.id}')">${item.text}</span>`);
+      });
+      return safe;
+    }
+
+    function inspectNote(chapKey, hlId) {
+      const list = annotations[chapKey] || [];
+      const item = list.find(x => x.id === hlId);
+      if (!item) return;
+      const action = prompt(`📖 划线原文：“${item.text}”\n💭 当前想法：${item.note || "（无）"}\n\n输入新内容可修改想法，输入 d 可删除该条划线：`, item.note || "");
+      if (action === null) return;
+      if (action.trim().toLowerCase() === "d") {
+        annotations[chapKey] = list.filter(x => x.id !== hlId);
+      } else {
+        item.note = action.trim();
+      }
+      localStorage.setItem("pro_notes_v2", JSON.stringify(annotations));
+      openChapter(activeChapIdx, false);
+    }
+
+    function renderChapterNotesList() {
+      const key = `${activeBookId}_${activeChapIdx}`;
+      const list = annotations[key] || [];
+      const box = document.getElementById("chapter-notes-box");
+      if (list.length === 0) {
+        box.innerHTML = `<div style="font-size:12px; color:var(--text-muted);">💡 长按正文字句即可划线或写想法批注。</div>`;
+        return;
+      }
+      box.innerHTML = `
+        <div style="font-weight:700; font-size:14px; margin-bottom:10px; color:var(--accent);">本章划线与想法 (${list.length})</div>
+        ${list.map(item => `
+          <div style="padding:10px 12px; background:var(--card-bg); border-left:3px solid var(--accent); border-radius:8px; margin-bottom:8px; font-size:13px;" onclick="inspectNote('${key}','${item.id}')">
+            <div>“${item.text}”</div>${item.note ? `<div style="color:var(--accent); margin-top:4px;">💭 想法：${item.note}</div>` : ""}
+          </div>
+        `).join("")}
+      `;
+    }
+
+    /**************************************************************
+     * 8. 外观设置 & 在线 AI 助手
+     **************************************************************/
+    function openSheet(id) {
+      document.getElementById("sheet-backdrop").classList.add("visible");
+      document.getElementById("sheet-backdrop").style.opacity = "1";
+      document.getElementById(id).classList.add("open");
+    }
+
+    function closeAllSheets() {
+      document.getElementById("sheet-backdrop").classList.remove("visible");
+      document.getElementById("sheet-backdrop").style.opacity = "0";
+      document.querySelectorAll(".sheet-modal").forEach(s => s.classList.remove("open"));
+      document.getElementById("selection-toolbar").style.display = "none";
+    }
+
     function setTheme(theme) {
-      document.documentElement.setAttribute('data-theme', theme);
-      document.querySelectorAll('[id^="theme-"]').forEach(btn => btn.classList.remove('active'));
-      document.getElementById(`theme-${theme}`).classList.add('active');
+      document.documentElement.setAttribute("data-theme", theme);
     }
-
     function setFont(font) {
-      document.documentElement.setAttribute('data-font', font);
-      document.querySelectorAll('[id^="font-"]').forEach(btn => btn.classList.remove('active'));
-      document.getElementById(`font-${font}`).classList.add('active');
+      document.documentElement.setAttribute("data-font", font);
+      setTimeout(updatePaginationLayout, 60);
+    }
+    function changeFontSize(delta) {
+      const curr = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--font-size")) || 18;
+      const next = Math.max(14, Math.min(28, curr + delta));
+      document.documentElement.style.setProperty("--font-size", next + "px");
+      setTimeout(updatePaginationLayout, 60);
     }
 
-    function adjustFontSize(delta) {
-      let currentSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--font-size')) || 17;
-      let newSize = Math.max(14, Math.min(26, currentSize + delta));
-      document.documentElement.style.setProperty('--font-size', `${newSize}px`);
+    function sendSelectionToAI() {
+      const text = cachedSelectedText || window.getSelection().toString().trim();
+      document.getElementById("selection-toolbar").style.display = "none";
+      document.getElementById("ai-prompt-input").value = `请针对以下小说片段进行赏析或润色：\n「${text}」`;
+      openSheet("ai-sheet");
     }
 
-    // 6. 书签与划线核心逻辑
-    function toggleBookmark() {
-      const key = `${currentBook}_${currentChapter}`;
-      if(bookmarks[key]) {
-        delete bookmarks[key];
-      } else {
-        bookmarks[key] = true;
-      }
-      localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
-      updateBookmarkUI();
+    function saveAiConfig() {
+      localStorage.setItem("pro_ai_key", document.getElementById("ai-key-input").value.trim());
+      localStorage.setItem("pro_ai_url", document.getElementById("ai-url-input").value.trim());
+      localStorage.setItem("pro_ai_model", document.getElementById("ai-model-input").value.trim());
     }
 
-    function updateBookmarkUI() {
-      const key = `${currentBook}_${currentChapter}`;
-      const indicator = document.getElementById('bookmark-indicator');
-      indicator.textContent = bookmarks[key] ? '🔖 已书签' : '🔖';
+    function loadAiConfig() {
+      document.getElementById("ai-key-input").value = localStorage.getItem("pro_ai_key") || "";
+      if (localStorage.getItem("pro_ai_url")) document.getElementById("ai-url-input").value = localStorage.getItem("pro_ai_url");
+      if (localStorage.getItem("pro_ai_model")) document.getElementById("ai-model-input").value = localStorage.getItem("pro_ai_model");
     }
 
-    // 处理划词选取
-    function handleTextSelection() {
-      const selection = window.getSelection();
-      const text = selection.toString().trim();
-      const menu = document.getElementById('selection-menu');
-      
-      if (text.length > 0) {
-        const range = selection.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        menu.style.display = 'flex';
-        // 算出合适位置弹窗
-        menu.style.top = `${rect.top + window.scrollY - 44}px`;
-        menu.style.left = `${Math.max(10, rect.left + window.scrollX + (rect.width/2) - 60)}px`;
-      } else {
-        menu.style.display = 'none';
-      }
-    }
+    async function runAiAssistant(presetTask) {
+      const key = document.getElementById("ai-key-input").value.trim();
+      const url = document.getElementById("ai-url-input").value.trim();
+      const model = document.getElementById("ai-model-input").value.trim();
+      const userPrompt = document.getElementById("ai-prompt-input").value.trim();
+      const out = document.getElementById("ai-output");
 
-    // 高亮选择（划线功能）
-    function highlightSelection() {
-      const selection = window.getSelection();
-      const text = selection.toString().trim();
-      if (!text) return;
+      const book = getActiveBook();
+      const chap = book?.chapters[activeChapIdx];
+      const contextText = userPrompt || (chap ? chap.content.slice(0, 800) : "");
 
-      const key = `${currentBook}_${currentChapter}`;
-      if(!highlights[key]) highlights[key] = [];
-      
-      highlights[key].push({ text: text, type: 'highlight' });
-      localStorage.setItem('highlights', JSON.stringify(highlights));
-      
-      // 局部背景高亮
-      const range = selection.getRangeAt(0);
-      const span = document.createElement('span');
-      span.className = 'highlight-yellow';
-      span.appendChild(range.extractContents());
-      range.insertNode(span);
-      
-      window.getSelection().removeAllRanges();
-      document.getElementById('selection-menu').style.display = 'none';
-      loadHighlights();
-    }
-
-    function addNote() {
-      const text = window.getSelection().toString().trim();
-      if (!text) return;
-      const note = prompt("写下这一刻的想法感悟：");
-      if(!note) return;
-
-      const key = `${currentBook}_${currentChapter}`;
-      if(!highlights[key]) highlights[key] = [];
-      
-      highlights[key].push({ text: text, note: note, type: 'note' });
-      localStorage.setItem('highlights', JSON.stringify(highlights));
-      
-      window.getSelection().removeAllRanges();
-      document.getElementById('selection-menu').style.display = 'none';
-      loadHighlights();
-    }
-
-    // 渲染想法与高亮列表
-    function loadHighlights() {
-      const key = `${currentBook}_${currentChapter}`;
-      const list = document.getElementById('highlights-list');
-      list.innerHTML = '';
-      
-      const items = highlights[key] || [];
-      if(items.length === 0) {
-        list.innerHTML = `<div style="color: var(--text-muted); font-size: 13px;">这一章还没有划线感悟。</div>`;
+      if (!key) {
+        out.textContent = `💡【本地灵感演示（填入 API Key 后可调用真实大模型）】\n针对任务「${presetTask}」的建议：\n1. 环境渲染可加入听觉与触觉细节（如器物冷暖、风声呼吸）；\n2. 人物对话间穿插微表情或动作停顿，制造张力。`;
         return;
       }
 
-      items.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'highlight-badge';
-        div.innerHTML = `
-          <div style="font-size:14px; opacity: 0.95;">“ ${item.text} ”</div>
-          ${item.note ? `<div style="font-size:12px; color: var(--accent); margin-top:4px;">💭 感悟：${item.note}</div>` : ''}
-        `;
-        list.appendChild(div);
-      });
-    }
-
-    // 隐藏气泡
-    document.addEventListener('click', (e) => {
-      const menu = document.getElementById('selection-menu');
-      if(!document.getElementById('chapter-content').contains(e.target) && e.target !== menu) {
-        menu.style.display = 'none';
+      out.textContent = "⏳ AI 正在思考中...";
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: "你是一位精通小说创作、古典与现代文学修辞的资深文学编辑。" },
+              { role: "user", content: `${presetTask}：\n\n${contextText}` }
+            ]
+          })
+        });
+        const data = await res.json();
+        out.textContent = data.choices?.[0]?.message?.content || JSON.stringify(data);
+      } catch (e) {
+        out.textContent = "调用出错：" + e.message;
       }
-    });
+    }
   </script>
 </body>
 </html>
