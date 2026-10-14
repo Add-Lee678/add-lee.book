@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>我的小说馆</title>
+  <style>
+    /* iOS 物理弹簧阻尼 & 平滑过渡动画 */
+    :root {
+      --bg: #f7f7f9;
+      --card-bg: #ffffff;
+      --text-main: #1c1c1e;
+      --text-muted: #8e8e93;
+      --accent: #c5a059;
+      --accent-light: rgba(197, 160, 89, 0.15);
+      --ios-radius: 14px;
+      --font-size: 17px;
+      --font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+    }
+
+    [data-theme="dark"] {
+      --bg: #121214;
+      --card-bg: #1c1c20;
+      --text-main: #e2e2e6;
+      --text-muted: #888890;
+    }
+
+    [data-theme="warm"] {
+      --bg: #f4eae1;
+      --card-bg: #fbf5f0;
+      --text-main: #3a2c1e;
+      --text-muted: #8c7662;
+    }
+
+    /* 字体族 */
+    [data-font="serif"] {
+      --font-family: "Georgia", "Songti SC", "SimSun", serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font-family);
+      background-color: var(--bg);
+      color: var(--text-main);
+      overflow-x: hidden;
+      user-select: none;
+    }
+
+    /* 顶部 & 导航 */
+    .app-header {
+      position: sticky;
+      top: 0;
+      background-color: var(--bg);
+      padding: 16px 20px;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+
+    .app-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    /* 页面容器 - 模拟 iOS 导航堆栈 */
+    .view-stack {
+      position: relative;
+      width: 100%;
+      min-height: calc(100vh - 60px);
+    }
+
+    .view {
+      display: none;
+      width: 100%;
+      padding: 20px;
+      animation: ios-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    @keyframes ios-fade-in {
+      from { transform: translateY(12px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* 1. 书架界面 */
+    .shelf-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px 16px;
+      margin-top: 20px;
+    }
+
+    .book-card {
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .book-cover-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      background: #e2e2e6;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .book-card:active .book-cover-container {
+      transform: scale(0.96);
+    }
+
+    .book-cover {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* iOS 物理边缘阴影、书脊立体效果 */
+    .book-spine-highlight {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4%;
+      background: linear-gradient(90deg, rgba(255,255,255,0.2) 0%, rgba(0,0,0,0.1) 100%);
+      z-index: 2;
+    }
+
+    .book-info {
+      margin-top: 8px;
+      width: 100%;
+    }
+
+    .book-name {
+      font-size: 13.5px;
+      font-weight: 600;
+      line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .book-progress {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    /* 2. 目录界面 */
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 15px;
+      color: var(--accent);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+
+    .toc-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .toc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .toc-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background-color: var(--card-bg);
+      border-radius: var(--ios-radius);
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+
+    .toc-item:active {
+      transform: scale(0.98);
+    }
+
+    /* 3. 阅读器界面 */
+    .reader-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .reader-chapter-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-top: 10px;
+      margin-bottom: 20px;
+    }
+
+    .reader-body {
+      font-size: var(--font-size);
+      line-height: 1.85;
+      letter-spacing: 0.5px;
+      user-select: text; /* 允许划线 */
+    }
+
+    .reader-body p {
+      margin-bottom: 24px;
+      text-indent: 2em;
+    }
+
+    /* 划线划词高亮样式 */
+    .highlight-yellow {
+      background-color: #ffeb3b80;
+      border-bottom: 2px wavy #ffc107;
+      cursor: pointer;
+    }
+
+    /* 微信读书式快捷菜单 */
+    .selection-menu {
+      position: fixed;
+      background: #1c1c1e;
+      color: white;
+      border-radius: 8px;
+      padding: 8px 12px;
+      display: none;
+      z-index: 999;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      font-size: 13px;
+      gap: 12px;
+      animation: menu-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .selection-menu span {
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    @keyframes menu-pop {
+      from { transform: scale(0.8) translateY(10px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    /* 顶栏控制组 */
+    .reader-tools {
+      display: flex;
+      gap: 14px;
+    }
+
+    .tool-btn {
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      color: var(--text-main);
+    }
+
+    /* 划线与书签面板 */
+    .panel-header {
+      font-weight: 600;
+      margin-top: 30px;
+      margin-bottom: 12px;
+      font-size: 15px;
+      color: var(--accent);
+    }
+
+    .bookmark-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      font-size: 11px;
+      background-color: var(--accent-light);
+      color: var(--accent);
+      border-radius: 4px;
+      margin-right: 6px;
+    }
+
+    .highlight-badge {
+      border-left: 3px solid var(--accent);
+      padding-left: 10px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: var(--text-main);
+    }
+
+    /* iOS 风格外观设置抽屉 */
+    .settings-sheet {
+      position: fixed;
+      bottom: -100%;
+      left: 0;
+      right: 0;
+      background: var(--card-bg);
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      padding: 24px;
+      z-index: 1000;
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.15);
+      transition: bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .settings-sheet.active {
+      bottom: 0;
+    }
+
+    .settings-group {
+      margin-bottom: 20px;
+    }
+
+    .settings-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .config-btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(0,0,0,0.1);
+      background: var(--bg);
+      color: var(--text-main);
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .config-btn.active {
+      border-color: var(--accent);
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      opacity: 0;
+      visibility: hidden;
+      z-index: 998;
+      transition: opacity 0.3s ease;
+    }
+
+    .backdrop.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* iOS 样式滑动指示器（底部 Bar） */
+    .ios-home-indicator {
+      width: 140px;
+      height: 5px;
+      background-color: var(--text-muted);
+      border-radius: 100px;
+      margin: 20px auto 10px;
+      opacity: 0.3;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 通用毛玻璃/遮罩层 -->
+  <div id="backdrop" class="backdrop" onclick="toggleSettings(false)"></div>
+
+  <div id="app">
+    <!-- 顶部状态导航 -->
+    <header class="app-header">
+      <div class="app-title" id="nav-title">我的书架</div>
+      <div class="reader-tools">
+        <button class="tool-btn" id="bookmark-indicator" onclick="toggleBookmark()" style="display:none;">🔖</button>
+        <button class="tool-btn" onclick="toggleSettings(true)">⚙️</button>
+      </div>
+    </header>
+
+    <main class="view-stack">
+      
+      <!-- 1. 书架界面 -->
+      <section id="shelf-view" class="view active">
+        <div class="shelf-grid">
+          
+          <!-- 书本 1 -->
+          <div class="book-card" onclick="openBook('夜巡者手记')">
+            <div class="book-cover-container">
+              <div class="book-spine-highlight"></div>
+              <img src="https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&w=400&q=80" alt="夜巡者手记" class="book-cover">
+            </div>
+            <div class="book-info">
+              <div class="book-name">夜巡者手记</div>
+              <div class="book-progress">已读 32%</div>
+            </div>
+          </div>
+
+          <!-- 书本 2 -->
+          <div class="book-card" onclick="openBook('失落的星河')">
+            <div class="book-cover-container">
+              <div class="book-spine-highlight"></div>
+              <img src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=400&q=80" alt="失落的星河" class="book-cover">
+            </div>
+            <div class="book-info">
+              <div class="book-name">失落的星河</div>
+              <div class="book-progress">已读 0%</div>
+            </div>
+          </div>
+
+          <!-- 书本 3 -->
+          <div class="book-card" onclick="openBook('雾城旧事')">
+            <div class="book-cover-container">
+              <div class="book-spine-highlight"></div>
+              <img src="https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=400&q=80" alt="雾城旧事" class="book-cover">
+            </div>
+            <div class="book-info">
+              <div class="book-name">雾城旧事</div>
+              <div class="book-progress">已读 12%</div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 2. 目录界面 -->
+      <section id="toc-view" class="view">
+        <button class="back-btn" onclick="navigateTo('shelf-view', '我的书架')">← 书架</button>
+        <div class="toc-title" id="toc-book-title">书名</div>
+        <div class="toc-list" id="toc-chapters">
+          <!-- 动态加载章节 -->
+        </div>
+      </section>
+
+      <!-- 3. 正文界面 -->
+      <section id="reader-view" class="view">
+        <div class="reader-nav">
+          <button class="back-btn" onclick="navigateTo('toc-view', '目录')">← 目录</button>
+          <span style="font-size: 14px; color: var(--text-muted);" id="reader-book-name">书名</span>
+        </div>
+        
+        <div class="reader-chapter-title" id="chapter-title">第1章 · 迷雾中的灯火</div>
+        
+        <!-- 可划线选择的文本区域 -->
+        <article class="reader-body" id="chapter-content" onmouseup="handleTextSelection()" ontouchend="handleTextSelection()">
+          <p>夜幕降临时，雾气已经悄然漫过了街道的转角。马车在碎石路上颠簸，车夫的吆喝声被湿冷的空气包裹，听上去像是从极遥远的地方传来。</p>
+          <p>他裹紧了身上的风衣，手心攥着那封被雨水浸湿了一角的信。信封上的字迹有些潦草，但那枚暗红色的火漆印依然清晰——那是一个展翅的飞蛾标记。</p>
+          <p>“在这个城市里，有些东西是永远不该去探寻的，”车夫突然闷声开口，甚至没有回头。他的声音干枯而沙哑，“尤其是那些只在深夜亮起绿灯的屋子。”</p>
+          <p>他没有答话，只是转头望向车窗外。模糊的街景像是一幅未干的墨水画，只有零星的煤气灯火在雾气里挣扎着，宛如风中残烛。</p>
+        </article>
+
+        <!-- 划线与书签面板 -->
+        <div class="panel-header">划线与想法</div>
+        <div id="highlights-list">
+          <!-- 动态加载划线数据 -->
+        </div>
+      </section>
+
+    </main>
+
+    <!-- 微信读书式划线选择菜单 -->
+    <div id="selection-menu" class="selection-menu">
+      <span onclick="highlightSelection()"><i class="icon">✏️</i> 划线</span>
+      <span onclick="addNote()"><i class="icon">💬</i> 想法</span>
+    </div>
+
+    <!-- 4. 外观控制抽屉 -->
+    <div id="settings-sheet" class="settings-sheet">
+      <div class="settings-group">
+        <div class="settings-title">主题氛围</div>
+        <div class="btn-row">
+          <button class="config-btn active" id="theme-default" onclick="setTheme('default')">明亮</button>
+          <button class="config-btn" id="theme-warm" onclick="setTheme('warm')">雅致暖色</button>
+          <button class="config-btn" id="theme-dark" onclick="setTheme('dark')">深夜暗黑</button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-title">排版字体</div>
+        <div class="btn-row">
+          <button class="config-btn active" id="font-sans" onclick="setFont('sans')">系统黑体</button>
+          <button class="config-btn" id="font-serif" onclick="setFont('serif')">人文衬线</button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-title">文字大小</div>
+        <div class="btn-row">
+          <button class="config-btn" onclick="adjustFontSize(-2)">A- 小</button>
+          <button class="config-btn" onclick="adjustFontSize(2)">A+ 大</button>
+        </div>
+      </div>
+
+      <div class="ios-home-indicator" onclick="toggleSettings(false)"></div>
+    </div>
+  </div>
+
+  <script>
+    // 基础数据源
+    const booksData = {
+      '夜巡者手记': ['第1章 · 迷雾中的灯火', '第2章 · 暗处的暗影', '第3章 · 消失的信笺'],
+      '失落的星河': ['第1章 · 太空孤寂', '第2章 · 脉冲星之声', '第3章 · 暗物质边缘'],
+      '雾城旧事': ['第1章 · 钟楼的阴影', '第2章 · 雨中来客', '第3章 · 封存的记忆']
+    };
+
+    let currentBook = '';
+    let currentChapter = '';
+    let bookmarks = JSON.parse(localStorage.getItem('bookmarks') || '{}');
+    let highlights = JSON.parse(localStorage.getItem('highlights') || '{}');
+
+    // 页面跳转控制器
+    function navigateTo(viewId, title) {
+      document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+      document.getElementById(viewId).classList.add('active');
+      document.getElementById('nav-title').textContent = title;
+      
+      // 控制阅读器专属工具按钮
+      const isReader = (viewId === 'reader-view');
+      document.getElementById('bookmark-indicator').style.display = isReader ? 'inline-block' : 'none';
+      if(isReader) {
+        updateBookmarkUI();
+        loadHighlights();
+      }
+    }
+
+    // 打开书本进入目录
+    function openBook(bookName) {
+      currentBook = bookName;
+      document.getElementById('toc-book-title').textContent = bookName;
+      
+      const chaptersList = document.getElementById('toc-chapters');
+      chaptersList.innerHTML = '';
+      
+      booksData[bookName].forEach(chapter => {
+        const item = document.createElement('div');
+        item.className = 'toc-item';
+        item.innerHTML = `<span>${chapter}</span><span style="color:var(--text-muted); font-size: 13px;">→</span>`;
+        item.onclick = () => openChapter(chapter);
+        chaptersList.appendChild(item);
+      });
+
+      navigateTo('toc-view', '目录');
+    }
+
+    // 进入章节
+    function openChapter(chapterName) {
+      currentChapter = chapterName;
+      document.getElementById('reader-book-name').textContent = currentBook;
+      document.getElementById('chapter-title').textContent = chapterName;
+      navigateTo('reader-view', '阅读正文');
+    }
+
+    // 5. iOS 抽屉控制
+    function toggleSettings(show) {
+      const sheet = document.getElementById('settings-sheet');
+      const backdrop = document.getElementById('backdrop');
+      if(show) {
+        sheet.classList.add('active');
+        backdrop.classList.add('active');
+      } else {
+        sheet.classList.remove('active');
+        backdrop.classList.remove('active');
+      }
+    }
+
+    // 设置外观函数
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      document.querySelectorAll('[id^="theme-"]').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`theme-${theme}`).classList.add('active');
+    }
+
+    function setFont(font) {
+      document.documentElement.setAttribute('data-font', font);
+      document.querySelectorAll('[id^="font-"]').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`font-${font}`).classList.add('active');
+    }
+
+    function adjustFontSize(delta) {
+      let currentSize = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--font-size')) || 17;
+      let newSize = Math.max(14, Math.min(26, currentSize + delta));
+      document.documentElement.style.setProperty('--font-size', `${newSize}px`);
+    }
+
+    // 6. 书签与划线核心逻辑
+    function toggleBookmark() {
+      const key = `${currentBook}_${currentChapter}`;
+      if(bookmarks[key]) {
+        delete bookmarks[key];
+      } else {
+        bookmarks[key] = true;
+      }
+      localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
+      updateBookmarkUI();
+    }
+
+    function updateBookmarkUI() {
+      const key = `${currentBook}_${currentChapter}`;
+      const indicator = document.getElementById('bookmark-indicator');
+      indicator.textContent = bookmarks[key] ? '🔖 已书签' : '🔖';
+    }
+
+    // 处理划词选取
+    function handleTextSelection() {
+      const selection = window.getSelection();
+      const text = selection.toString().trim();
+      const menu = document.getElementById('selection-menu');
+      
+      if (text.length > 0) {
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        menu.style.display = 'flex';
+        // 算出合适位置弹窗
+        menu.style.top = `${rect.top + window.scrollY - 44}px`;
+        menu.style.left = `${Math.max(10, rect.left + window.scrollX + (rect.width/2) - 60)}px`;
+      } else {
+        menu.style.display = 'none';
+      }
+    }
+
+    // 高亮选择（划线功能）
+    function highlightSelection() {
+      const selection = window.getSelection();
+      const text = selection.toString().trim();
+      if (!text) return;
+
+      const key = `${currentBook}_${currentChapter}`;
+      if(!highlights[key]) highlights[key] = [];
+      
+      highlights[key].push({ text: text, type: 'highlight' });
+      localStorage.setItem('highlights', JSON.stringify(highlights));
+      
+      // 局部背景高亮
+      const range = selection.getRangeAt(0);
+      const span = document.createElement('span');
+      span.className = 'highlight-yellow';
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+      
+      window.getSelection().removeAllRanges();
+      document.getElementById('selection-menu').style.display = 'none';
+      loadHighlights();
+    }
+
+    function addNote() {
+      const text = window.getSelection().toString().trim();
+      if (!text) return;
+      const note = prompt("写下这一刻的想法感悟：");
+      if(!note) return;
+
+      const key = `${currentBook}_${currentChapter}`;
+      if(!highlights[key]) highlights[key] = [];
+      
+      highlights[key].push({ text: text, note: note, type: 'note' });
+      localStorage.setItem('highlights', JSON.stringify(highlights));
+      
+      window.getSelection().removeAllRanges();
+      document.getElementById('selection-menu').style.display = 'none';
+      loadHighlights();
+    }
+
+    // 渲染想法与高亮列表
+    function loadHighlights() {
+      const key = `${currentBook}_${currentChapter}`;
+      const list = document.getElementById('highlights-list');
+      list.innerHTML = '';
+      
+      const items = highlights[key] || [];
+      if(items.length === 0) {
+        list.innerHTML = `<div style="color: var(--text-muted); font-size: 13px;">这一章还没有划线感悟。</div>`;
+        return;
+      }
+
+      items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'highlight-badge';
+        div.innerHTML = `
+          <div style="font-size:14px; opacity: 0.95;">“ ${item.text} ”</div>
+          ${item.note ? `<div style="font-size:12px; color: var(--accent); margin-top:4px;">💭 感悟：${item.note}</div>` : ''}
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    // 隐藏气泡
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('selection-menu');
+      if(!document.getElementById('chapter-content').contains(e.target) && e.target !== menu) {
+        menu.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>
